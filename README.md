@@ -1,2 +1,3 @@
-# Live-Hosting-PROD
-This is the actual repository from which your all work is currently running , please think twice before commiting anything
+# Live-hosting-DEV
+This Repository is Just to deploy your changes and product to validate and test for working style
+# my_work
