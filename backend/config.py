@@ -28,24 +28,32 @@ IS_QA = (ENVIRONMENT == "QA")
 IS_PROD = (ENVIRONMENT == "PROD")
 IS_PRODUCTION = IS_PROD  # Backward compatibility alias
 
-# Centralized Frontend URL
-FRONTEND_URL = (os.environ.get("FRONTEND_URL") or ("http://localhost:5173" if not IS_PROD else "")).rstrip('/')
+def _normalize_origin(origin):
+    """Normalize one exact browser origin without weakening it to a wildcard."""
+    normalized = str(origin or "").strip().rstrip("/")
+    if normalized == "*":
+        raise ValueError("Wildcard CORS origins are not allowed with credentials")
+    return normalized
 
-def get_allowed_origins():
+
+def get_allowed_origins(frontend_url=None, allowed_origins=None, environment=None):
     """
-    Returns list of exact allowed origins for CORS credentials matching across environments.
+    Build the ordered, de-duplicated list of exact credentialed CORS origins.
+
+    Optional arguments make the resolver independently testable. Normal application
+    startup reads FRONTEND_URL and ALLOWED_ORIGINS directly from the environment.
     """
     origins = []
-    frontend_env = os.environ.get("FRONTEND_URL", "")
-    allowed_env = os.environ.get("ALLOWED_ORIGINS", "")
-    
-    for url_str in [frontend_env, allowed_env]:
-        if url_str:
-            for part in url_str.split(','):
-                part = part.strip().rstrip('/')
-                if part and part not in origins:
-                    origins.append(part)
-                    
+    frontend_value = os.environ.get("FRONTEND_URL", "") if frontend_url is None else frontend_url
+    allowed_value = os.environ.get("ALLOWED_ORIGINS", "") if allowed_origins is None else allowed_origins
+
+    for configured_value in (frontend_value, allowed_value):
+        for candidate in str(configured_value or "").split(","):
+            origin = _normalize_origin(candidate)
+            if origin and origin not in origins:
+                origins.append(origin)
+
+    active_environment = str(environment or ENVIRONMENT).strip().upper()
     dev_defaults = [
         "http://localhost:5173",
         "http://localhost:3000",
@@ -54,12 +62,18 @@ def get_allowed_origins():
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5005"
     ]
-    if not IS_PROD:
-        for d in dev_defaults:
-            if d not in origins:
-                origins.append(d)
-            
+    if active_environment not in ("PROD", "PRODUCTION"):
+        for default_origin in dev_defaults:
+            if default_origin not in origins:
+                origins.append(default_origin)
+
     return origins
+
+
+# Centralized Frontend URL used for redirects and application links.
+FRONTEND_URL = _normalize_origin(
+    os.environ.get("FRONTEND_URL") or ("http://localhost:5173" if not IS_PROD else "")
+)
 
 
 # Dynamic Database URI resolution based on ENVIRONMENT
