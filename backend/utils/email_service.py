@@ -101,7 +101,7 @@ def send_email_smtp(to_email, subject, body, email_type="GENERAL", is_html=True,
     while attempt <= max_retries:
         attempt += 1
         try:
-            print(f"[SMTP EMAIL] Connection attempt {attempt}/{max_retries + 1} to {smtp_host}:{smtp_port} for {to_email}...")
+            print(f"[SMTP EMAIL] Connection attempt {attempt}/{max_retries + 1}...")
             
             # Choose SSL vs TLS
             if smtp_port == 465:
@@ -115,7 +115,7 @@ def send_email_smtp(to_email, subject, body, email_type="GENERAL", is_html=True,
             server.sendmail(smtp_user, [to_email], msg.as_string())
             server.quit()
 
-            print(f"[SMTP SUCCESS] Email '{subject}' successfully sent to {to_email}")
+            print("[SMTP SUCCESS] Email successfully sent.")
             _log_email_to_db(to_email, subject, email_type, "SENT")
             return EmailDeliveryStatus({
                 "success": True,
@@ -125,7 +125,7 @@ def send_email_smtp(to_email, subject, body, email_type="GENERAL", is_html=True,
             })
         except Exception as ex:
             last_error = str(ex)
-            print(f"[SMTP RETRY WARNING] Attempt {attempt} failed sending to {to_email}: {last_error}")
+            print(f"[SMTP RETRY WARNING] Attempt {attempt} failed: {last_error}")
             if attempt <= max_retries:
                 time.sleep(1.5)
 
@@ -146,7 +146,7 @@ def send_email(to_email, subject, body, email_type="GENERAL", is_html=True, sync
     Can run synchronously or asynchronously in a daemon thread.
     """
     if not Config.ENABLE_EMAIL:
-        print(f"[EMAIL SYSTEM] Skipped sending to {to_email}: ENABLE_EMAIL is OFF.")
+        print("[EMAIL SYSTEM] Send skipped: ENABLE_EMAIL is off.")
         _log_email_to_db(to_email, subject, email_type, "DISABLED", "ENABLE_EMAIL feature flag is OFF")
         return EmailDeliveryStatus({"success": True, "status": "disabled", "error": None})
 
@@ -172,7 +172,7 @@ def send_forgot_password_otp(to_email, otp_code, name=None):
     Respects ENABLE_EMAIL_FORGOT_PASSWORD_OTP flag.
     """
     if not getattr(Config, "ENABLE_EMAIL_FORGOT_PASSWORD_OTP", True):
-        print(f"[EMAIL SYSTEM] Password reset email skipped for {to_email}: ENABLE_EMAIL_FORGOT_PASSWORD_OTP is OFF.")
+        print("[EMAIL SYSTEM] Password reset email skipped by feature flag.")
         _log_email_to_db(to_email, "SSJewellery Password Reset OTP", "FORGOT_PASSWORD_OTP", "DISABLED")
         return EmailDeliveryStatus({"success": True, "status": "disabled"})
 
@@ -189,13 +189,13 @@ def send_order_confirmation(to_email, order):
     Executed asynchronously so order placement is NEVER delayed.
     """
     if not getattr(Config, "ENABLE_EMAIL_ORDER_CONFIRMATION", True):
-        print(f"[EMAIL SYSTEM] Order confirmation email skipped for {to_email}: ENABLE_EMAIL_ORDER_CONFIRMATION is OFF.")
+        print("[EMAIL SYSTEM] Order confirmation email skipped by feature flag.")
         _log_email_to_db(to_email, "Your SSJewellery Order Has Been Confirmed", "ORDER_CONFIRMATION", "DISABLED")
         return EmailDeliveryStatus({"success": True, "status": "disabled"})
 
     # Clean dummy/guest email domains
     if not to_email or "@SSJewellery.com" in str(to_email) or "@admin.local" in str(to_email):
-        print(f"[EMAIL SYSTEM] Order confirmation email skipped for dummy address {to_email}")
+        print("[EMAIL SYSTEM] Order confirmation email skipped for a placeholder address.")
         return EmailDeliveryStatus({"success": True, "status": "skipped_dummy_email"})
 
     subject = "Your SSJewellery Order Has Been Confirmed"
@@ -212,12 +212,12 @@ def send_buy_request_approval(to_email, product_name, request_id, quantity=1, av
     Respects ENABLE_EMAIL_BUY_REQUEST_CONFIRMATION flag.
     """
     if not getattr(Config, "ENABLE_EMAIL_BUY_REQUEST_CONFIRMATION", True):
-        print(f"[EMAIL SYSTEM] Buy request confirmation email skipped for {to_email}: ENABLE_EMAIL_BUY_REQUEST_CONFIRMATION is OFF.")
+        print("[EMAIL SYSTEM] Buy request confirmation email skipped by feature flag.")
         _log_email_to_db(to_email, "Your Buy Request Has Been Approved", "BUY_REQUEST_APPROVAL", "DISABLED")
         return EmailDeliveryStatus({"success": True, "status": "disabled"})
 
     if not to_email or "@SSJewellery.com" in str(to_email) or "@admin.local" in str(to_email):
-        print(f"[EMAIL SYSTEM] Buy request email skipped for dummy address {to_email}")
+        print("[EMAIL SYSTEM] Buy request email skipped for a placeholder address.")
         return EmailDeliveryStatus({"success": True, "status": "skipped_dummy_email"})
 
     subject = "Your Buy Request Has Been Approved"
@@ -239,7 +239,7 @@ def send_registration_otp(to_email, otp_code, name=None):
     Only sends if ENABLE_EMAIL_REGISTRATION_OTP is explicitly True.
     """
     if not getattr(Config, "ENABLE_EMAIL_REGISTRATION_OTP", False):
-        print(f"[EMAIL SYSTEM] Registration OTP email skipped for {to_email}: ENABLE_EMAIL_REGISTRATION_OTP is OFF.")
+        print("[EMAIL SYSTEM] Registration OTP email skipped by feature flag.")
         _log_email_to_db(to_email, "SSJewellery Registration Code", "REGISTRATION_OTP", "DISABLED")
         return EmailDeliveryStatus({"success": True, "status": "disabled"})
 

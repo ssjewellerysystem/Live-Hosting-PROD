@@ -3,8 +3,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
-import socket
+from urllib.parse import urlparse
 
 # Environment Detection & Normalization
 raw_env = (
@@ -55,43 +54,13 @@ def get_allowed_origins():
         "http://127.0.0.1:3000",
         "http://127.0.0.1:5005"
     ]
-    for d in dev_defaults:
-        if d not in origins:
-            origins.append(d)
+    if not IS_PROD:
+        for d in dev_defaults:
+            if d not in origins:
+                origins.append(d)
             
     return origins
 
-
-def resolve_neon_uri(uri):
-    if not uri:
-        return uri
-    try:
-        parsed = urlparse(uri)
-        if parsed.hostname and (parsed.hostname.endswith('.neon.tech') or 'neon' in parsed.hostname):
-            # Force IPv4 lookup for Neon Postgres poolers
-            addrinfo = socket.getaddrinfo(parsed.hostname, parsed.port or 5432, socket.AF_INET, socket.SOCK_STREAM)
-            if addrinfo:
-                ipv4 = addrinfo[0][4][0]
-                endpoint_id = parsed.hostname.split('.')[0]
-                
-                port_str = f":{parsed.port}" if parsed.port else ""
-                auth_str = ""
-                if parsed.username:
-                    auth_str += parsed.username
-                    if parsed.password:
-                        auth_str += f":{parsed.password}"
-                    auth_str += "@"
-                new_netloc = f"{auth_str}{ipv4}{port_str}"
-                
-                query_params = parse_qs(parsed.query)
-                query_params['options'] = [f"endpoint={endpoint_id}"]
-                new_query = urlencode(query_params, doseq=True)
-                
-                new_uri = urlunparse(parsed._replace(netloc=new_netloc, query=new_query))
-                return new_uri
-    except Exception:
-        pass
-    return uri
 
 # Dynamic Database URI resolution based on ENVIRONMENT
 base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -103,7 +72,7 @@ if ENVIRONMENT == "DEV":
         os.environ.get("DEV_DATABASE_URL")
         or os.environ.get("DATABASE_URI")
         or os.environ.get("DATABASE_URL")
-        or "postgresql://neondb_owner:npg_GOsy48HeAJhP@ep-bold-base-ao7v7l2l-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require"
+        or f"sqlite:///{sqlite_dev_path}"
     )
 elif ENVIRONMENT == "QA":
     # 2. QA Database URL (Paste your QA Database link inside quotes below)
@@ -119,7 +88,7 @@ else:
         os.environ.get("PROD_DATABASE_URL")
         or os.environ.get("DATABASE_URI")
         or os.environ.get("DATABASE_URL")
-        or f"sqlite:///{sqlite_dev_path}"
+        or None
     )
 
 
@@ -144,9 +113,9 @@ class Config:
     FRONTEND_URL = FRONTEND_URL
     
     # Secrets
-    JWT_SECRET = os.environ.get("JWT_SECRET") or os.environ.get("SECRET_KEY") or "supersecret_SSJewellery_key_123"
+    JWT_SECRET = os.environ.get("JWT_SECRET") or (None if IS_PROD else "development-only-change-me")
     SECRET_KEY = os.environ.get("SECRET_KEY") or JWT_SECRET
-    JWT_SECRET_KEY = os.environ.get("JWT_SECRET_KEY") or JWT_SECRET
+    JWT_SECRET_KEY = JWT_SECRET
 
     # Cookie & Session Security Settings (Environment Aware)
     SESSION_COOKIE_SECURE = not IS_DEV
@@ -166,16 +135,12 @@ class Config:
         Dynamically retrieve the active JWT secret at runtime across environments.
         """
         return (
-            os.environ.get("JWT_SECRET")
-            or os.environ.get("SECRET_KEY")
-            or os.environ.get("JWT_SECRET_KEY")
-            or cls.JWT_SECRET
-            or "supersecret_SSJewellery_key_123"
+            os.environ.get("JWT_SECRET") or cls.JWT_SECRET
         )
 
     
     # Database
-    SQLALCHEMY_DATABASE_URI = resolve_neon_uri(raw_uri) if raw_uri else None
+    SQLALCHEMY_DATABASE_URI = raw_uri
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ECHO = IS_DEV
     SQLALCHEMY_ENGINE_OPTIONS = {
@@ -233,9 +198,12 @@ class Config:
     SMTP_TLS = True
 
     # Sensitive SMTP Credentials (Runtime OS Environment Variables Only)
-    SMTP_EMAIL = os.environ.get("SMTP_EMAIL") or os.environ.get("MAIL_USERNAME") or os.environ.get("EMAIL_ADDRESS") or "ssjewellerysystem@gmail.com"
+    SMTP_EMAIL = os.environ.get("SMTP_EMAIL") or os.environ.get("MAIL_USERNAME") or os.environ.get("EMAIL_ADDRESS")
     SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD") or os.environ.get("MAIL_PASSWORD") or os.environ.get("EMAIL_APP_PASSWORD")
-    SMTP_FROM = f"SSJewellery <{SMTP_EMAIL}>" if SMTP_EMAIL else "SSJewellery <ssjewellerysystem@gmail.com>"
+    SMTP_FROM = f"SSJewellery <{SMTP_EMAIL}>" if SMTP_EMAIL else None
+
+    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
+    REPORT_SCHEDULER_ENABLED = _get_bool_env("REPORT_SCHEDULER_ENABLED", False)
 
     # Flask-Mail Compatibility Configuration
     MAIL_SERVER = SMTP_HOST
@@ -290,7 +258,7 @@ def validate_smtp_configuration():
         print(" Note: All other website functionality will continue operating normally.")
         print("="*70 + "\n")
     else:
-        print(f"[SMTP SUCCESS] Gmail SMTP runtime environment configuration validated for: {smtp_email}")
+        print("[SMTP SUCCESS] SMTP runtime environment configuration validated.")
 
 def validate_environment():
     """
@@ -325,12 +293,24 @@ def validate_environment():
     env_db = Config.SQLALCHEMY_DATABASE_URI
     if not env_db:
         missing.append("PROD_DATABASE_URL / DATABASE_URL / DATABASE_URI")
+    else:
+        parsed_db = urlparse(env_db)
+        if parsed_db.scheme not in ("postgresql", "postgresql+psycopg2"):
+            invalid.append("Production database URL must use PostgreSQL")
+        if parsed_db.hostname and parsed_db.hostname.endswith("neon.tech"):
+            sslmode = dict(part.split("=", 1) for part in parsed_db.query.split("&") if "=" in part).get("sslmode")
+            if sslmode not in ("require", "verify-ca", "verify-full"):
+                invalid.append("Neon PostgreSQL connections must require SSL")
 
-    env_jwt = os.environ.get("JWT_SECRET") or os.environ.get("SECRET_KEY")
+    env_jwt = os.environ.get("JWT_SECRET")
     if not env_jwt:
-        missing.append("JWT_SECRET / SECRET_KEY")
-    elif env_jwt == "supersecret_SSJewellery_key_123":
-        invalid.append("JWT_SECRET / SECRET_KEY cannot use default development key in production mode")
+        missing.append("JWT_SECRET")
+    if not os.environ.get("SECRET_KEY"):
+        missing.append("SECRET_KEY")
+    if not os.environ.get("ENCRYPTION_KEY"):
+        missing.append("ENCRYPTION_KEY")
+    if Config.ENABLE_EMAIL and (not Config.SMTP_EMAIL or not Config.SMTP_PASSWORD):
+        missing.append("SMTP_EMAIL and SMTP_PASSWORD (required while ENABLE_EMAIL=true)")
 
     if missing or invalid:
         err_lines = [

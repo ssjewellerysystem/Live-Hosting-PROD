@@ -19,8 +19,8 @@ def generate_otp(identifier):
     Generates a 6-digit OTP, stores it in the database with 5 minutes validity, and returns it.
     Respects Config.ENABLE_OTP and Config.ENABLE_SMS feature flags.
     """
-    if not Config.ENABLE_OTP:
-        safe_print(f"[OTP SYSTEM] OTP feature flag is OFF in {Config.ENVIRONMENT} environment for '{identifier}'. Generating test OTP.")
+    if not Config.ENABLE_OTP and Config.IS_DEV:
+        safe_print("[OTP SYSTEM] OTP feature flag is off; generating a development OTP.")
 
     otp = str(random.randint(100000, 999999))
     expires_at = get_ist_time() + timedelta(minutes=5)
@@ -42,8 +42,8 @@ def generate_otp(identifier):
         
     db.session.commit()
     
-    # Display OTP in Flask terminal logs
-    safe_print(f"\n[OTP SYSTEM] [{Config.ENVIRONMENT} MODE] Generated OTP for '{identifier}': {otp} (Expires in 5 minutes)")
+    if Config.IS_DEV:
+        safe_print("[OTP SYSTEM] Development OTP generated (value intentionally not logged).")
     if not Config.ENABLE_SMS:
         safe_print(f"[SMS SYSTEM] SMS delivery disabled by feature flag (ENABLE_SMS=False in {Config.ENVIRONMENT} mode).")
     
@@ -55,7 +55,7 @@ def verify_otp(identifier, submitted_otp):
     Allows master test OTP '123456' when Config.IS_DEV or ENABLE_OTP is False.
     """
     if (Config.IS_DEV or not Config.ENABLE_OTP) and str(submitted_otp) == "123456":
-        safe_print(f"[OTP SYSTEM] Development/Bypass Mode: verified using master OTP 123456 for '{identifier}'")
+        safe_print("[OTP SYSTEM] Development bypass OTP accepted.")
         return True
         
     record = OTPVerification.query.filter_by(identifier=identifier).first()

@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request
 from backend.models.collection import CollectionModel
 from backend.models.product import ProductModel
 from backend.extensions import db
+from backend.middleware.auth import admin_required
 
 collections_bp = Blueprint('collections', __name__)
 
@@ -38,6 +39,7 @@ def get_collection(collection_id):
 
 @collections_bp.route('', methods=['POST'])
 @collections_bp.route('/', methods=['POST'])
+@admin_required
 def create_collection():
     try:
         data = request.get_json() or {}
@@ -84,6 +86,7 @@ def create_collection():
         return jsonify({"message": f"Failed to create collection: {str(e)}"}), 500
 
 @collections_bp.route('/<int:collection_id>', methods=['PUT'])
+@admin_required
 def update_collection(collection_id):
     try:
         collection = CollectionModel.query.get(collection_id)
@@ -125,6 +128,7 @@ def update_collection(collection_id):
         return jsonify({"message": f"Failed to update collection: {str(e)}"}), 500
 
 @collections_bp.route('/<int:collection_id>/toggle', methods=['PUT'])
+@admin_required
 def toggle_collection(collection_id):
     try:
         collection = CollectionModel.query.get(collection_id)
@@ -140,6 +144,7 @@ def toggle_collection(collection_id):
         return jsonify({"message": "Failed to toggle collection"}), 500
 
 @collections_bp.route('/<int:collection_id>', methods=['DELETE'])
+@admin_required
 def delete_collection(collection_id):
     try:
         collection = CollectionModel.query.get(collection_id)

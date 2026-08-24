@@ -17,7 +17,7 @@ def setup_persistence():
     with app.app_context():
         # Print actual runtime database URI
         db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
-        print(f"RUNTIME DATABASE URI: {db_uri}")
+        print("Runtime database configuration loaded.")
         
         # 1. Clean up old test data if exists
         user = UserModel.query.filter_by(email=TEST_USER_EMAIL).first()
@@ -104,7 +104,7 @@ def verify_persistence():
     with app.app_context():
         # Print actual runtime database URI
         db_uri = app.config.get("SQLALCHEMY_DATABASE_URI")
-        print(f"RUNTIME DATABASE URI: {db_uri}")
+        print("Runtime database configuration loaded.")
         
         # 1. Verify user exists
         user_obj = UserModel.query.filter_by(email=TEST_USER_EMAIL).first()

@@ -7,7 +7,7 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from dotenv import load_dotenv
 
@@ -68,40 +68,22 @@ app.logger.setLevel(log_level)
 
 # Enable CORS for frontend requests with exact environment-aware origins
 allowed_origins_list = get_allowed_origins()
-CORS(app, origins=allowed_origins_list, supports_credentials=True)
+CORS(
+    app,
+    origins=allowed_origins_list,
+    supports_credentials=True,
+    allow_headers=['Content-Type', 'Authorization'],
+    methods=['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+)
 
 import gzip
 import io
 
-@app.before_request
-def handle_options_preflight():
-    if request.method == 'OPTIONS':
-        response = app.make_default_options_response()
-        origin = request.headers.get('Origin')
-        allowed = get_allowed_origins()
-        if origin:
-            response.headers['Access-Control-Allow-Origin'] = origin
-            response.headers['Vary'] = 'Origin'
-        elif allowed:
-            response.headers['Access-Control-Allow-Origin'] = allowed[0]
-        response.headers['Access-Control-Allow-Credentials'] = 'true'
-        response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, X-Requested-With, X-Access-Token, X-Auth-Token, X-Admin-Token'
-        response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
-        return response
-
 @app.after_request
-def add_cors_and_compress(response):
-    origin = request.headers.get('Origin')
-    allowed = get_allowed_origins()
-    if origin:
-        response.headers['Access-Control-Allow-Origin'] = origin
-        response.headers['Vary'] = 'Origin'
-    elif allowed:
-        response.headers['Access-Control-Allow-Origin'] = allowed[0]
-
-    response.headers['Access-Control-Allow-Credentials'] = 'true'
-    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization, Accept, X-Requested-With, X-Access-Token, X-Auth-Token, X-Admin-Token'
-    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+def compress_response(response):
+    if Config.IS_PROD and response.status_code >= 500:
+        response.set_data('{"success":false,"message":"Internal server error."}')
+        response.content_type = 'application/json'
 
     # Gzip response payload compression for text/JSON responses
     if (
@@ -172,7 +154,6 @@ print_registered_routes(app)
 
 
 
-from flask import request
 from backend.utils.helpers import generate_otp, verify_otp, is_valid_email
 from backend.models.user import UserModel
 
@@ -187,7 +168,8 @@ def root_send_otp():
     
     # Placeholder for MSG91 / real SMS service integration
     # When switching to production later, replace this print/email flow with actual MSG91 SDK call
-    print(f"\n[PRODUCTION PLACEMENT] Future MSG91 would send OTP {otp} to {identifier}\n")
+    if Config.IS_DEV:
+        app.logger.debug("OTP generated for a development request")
     
     # If it is email, we can also email it (as in auth/send-otp)
     if is_valid_email(identifier):
@@ -213,7 +195,7 @@ def root_send_otp():
         "message": "OTP sent successfully! Please check your console or email.",
         "success": True
     }
-    if os.getenv("OTP_MODE", "development").lower() == "development":
+    if Config.IS_DEV and os.getenv("OTP_MODE", "development").lower() == "development":
         response_data["otp_debug"] = otp
     return jsonify(response_data), 200
 
@@ -275,12 +257,26 @@ def not_found(error):
 @app.errorhandler(500)
 def server_error(error):
     logging.error(f"[GLOBAL 500 ERROR] Internal server error: {error}", exc_info=True)
-    return jsonify({"success": False, "message": f"Internal server error: {str(error)}"}), 500
+    return jsonify({"success": False, "message": "Internal server error."}), 500
 
 @app.errorhandler(Exception)
 def handle_uncaught_exception(error):
     logging.error(f"[UNCAUGHT EXCEPTION] Unhandled exception occurred: {error}", exc_info=True)
     return jsonify({"success": False, "message": "An unexpected server error occurred."}), 500
+
+@app.get('/health')
+def health():
+    return jsonify({"status": "healthy"}), 200
+
+@app.get('/ready')
+def ready():
+    try:
+        db.session.execute(db.text("SELECT 1"))
+        return jsonify({"status": "ready"}), 200
+    except Exception:
+        db.session.rollback()
+        app.logger.warning("Database readiness check failed", exc_info=True)
+        return jsonify({"status": "not ready"}), 503
 
 def seed_database():
     """
@@ -352,34 +348,22 @@ def seed_database():
         print("[SEED] Error seeding database:", e)
 
 
-# Run initialization inside app context if db tables are initialized
-with app.app_context():
+@app.cli.command('bootstrap-dev')
+def bootstrap_dev():
+    """Explicit local-only schema bootstrap and seed command."""
+    if Config.IS_PROD:
+        raise RuntimeError("bootstrap-dev is disabled in production; use Alembic migrations")
     db.create_all()
-    try:
-        from backend.models.order import ensure_tracking_columns
-        ensure_tracking_columns()
-    except Exception as ex:
-        print("[APP] Error ensuring tracking columns:", ex)
     seed_database()
 
-    try:
-        from backend.utils.report_automation import start_report_scheduler
-        start_report_scheduler(app)
-    except Exception as err:
-        print("[APP] Scheduler will start after DB is ready:", err)
-
-
-    # API Route Discovery Logger: Print registered routes during startup
-    print("\n" + "=" * 60)
-    print("[API DISCOVERY] Registered Backend API Endpoints:")
-    registered_routes = sorted(
-        [(','.join(sorted(rule.methods - {'HEAD', 'OPTIONS'})), rule.rule, rule.endpoint) for rule in app.url_map.iter_rules()],
-        key=lambda x: x[1]
-    )
-    for methods, rule, endpoint in registered_routes:
-        if methods:
-            print(f"  {methods:<10} {rule:<42} [{endpoint}]")
-    print("=" * 60 + "\n")
+@app.cli.command('run-report-scheduler')
+def run_report_scheduler():
+    """Run reporting in a dedicated process when explicitly enabled."""
+    if not Config.REPORT_SCHEDULER_ENABLED:
+        raise RuntimeError("Set REPORT_SCHEDULER_ENABLED=true to run the scheduler")
+    from backend.utils.report_automation import start_report_scheduler
+    thread = start_report_scheduler(app)
+    thread.join()
 
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 5005))

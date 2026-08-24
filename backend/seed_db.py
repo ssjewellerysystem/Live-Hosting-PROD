@@ -96,7 +96,7 @@ def seed_database():
             )
             db.session.add(cust_addr)
             db.session.commit()
-            print(f"Created default Customer user: {cust_email} / Customer@123")
+            print("Created default development customer user.")
 
         # 2. Seed Products
         print("Seeding catalog products...")

@@ -185,12 +185,17 @@ export const AuthProvider = ({ children }) => {
     syncLanguageOnLogin(userData);
     const determinedLoginType = userData.is_admin ? 'admin' : 'user';
     setLoginType(determinedLoginType);
-    localStorage.setItem('bb_token', userToken);
-    localStorage.setItem('token', userToken);
+    if (userToken) {
+      localStorage.setItem('bb_token', userToken);
+      localStorage.setItem('token', userToken);
+    } else {
+      localStorage.removeItem('bb_token');
+      localStorage.removeItem('token');
+    }
     localStorage.setItem('bb_user', JSON.stringify(userData));
     localStorage.setItem('user', JSON.stringify(userData));
     localStorage.setItem('bb_login_type', determinedLoginType);
-    setAxiosAuthToken(userToken);
+    if (userToken) setAxiosAuthToken(userToken);
   };
 
   const adminLogin = async (adminId, password) => {
@@ -226,6 +231,7 @@ export const AuthProvider = ({ children }) => {
         headers: { 'Authorization': `Bearer ${activeToken}` }
       }).catch(err => console.error("Failed to log out admin session on server:", err));
     }
+    axios.post(`${API_BASE_URL}/auth/logout`, {}, { withCredentials: true }).catch(() => {});
     setUser(null);
     setToken(null);
     setLoginType(null);

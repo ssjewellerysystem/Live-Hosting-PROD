@@ -8,6 +8,7 @@ from backend.models.review import ReviewModel
 from backend.middleware.auth import token_required, admin_required
 from backend.extensions import db
 from backend.utils.timezone import format_iso_datetime
+from backend.utils.uploads import validate_image_upload
 
 products_bp = Blueprint('products', __name__)
 
@@ -399,6 +400,9 @@ def upload_image():
     file = request.files['image']
     if file.filename == '':
         return jsonify({"message": "No file selected."}), 400
+    filename, validation_error = validate_image_upload(file)
+    if validation_error:
+        return jsonify({"message": validation_error}), 400
         
     if CLOUDINARY_ENABLED:
         try:
@@ -412,9 +416,6 @@ def upload_image():
             
     # Local fallback
     try:
-        filename = secure_filename(file.filename)
-        import time
-        filename = f"{int(time.time())}_{filename}"
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
         
