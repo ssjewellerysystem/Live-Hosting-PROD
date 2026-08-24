@@ -1465,6 +1465,7 @@ def get_admin_collections():
         return jsonify([]), 200
 
 @admin_bp.route('/collections', methods=['POST'])
+@admin_required
 def create_admin_collection():
     from backend.models.collection import CollectionModel
     from backend.utils.cache import products_cache
@@ -1519,6 +1520,7 @@ def create_admin_collection():
     return jsonify(coll.to_dict()), 201
 
 @admin_bp.route('/collections/<id>', methods=['PUT'])
+@admin_required
 def update_admin_collection(id):
     from backend.models.collection import CollectionModel
     from backend.utils.cache import products_cache
@@ -1562,6 +1564,7 @@ def update_admin_collection(id):
         return jsonify({"message": "Failed to update collection."}), 500
 
 @admin_bp.route('/collections/<id>', methods=['DELETE'])
+@admin_required
 def delete_admin_collection(id):
     from backend.models.collection import CollectionModel
     from backend.models.product import ProductModel
@@ -1587,6 +1590,7 @@ def delete_admin_collection(id):
         return jsonify({"message": "Failed to delete collection."}), 500
 
 @admin_bp.route('/collections/<id>/toggle', methods=['PUT'])
+@admin_required
 def toggle_admin_collection_active(id):
     from backend.models.collection import CollectionModel
     from backend.utils.cache import products_cache

@@ -6,6 +6,7 @@ from backend.extensions import db
 from backend.models.collection import CollectionModel
 from backend.models.collection_banner import CollectionBanner
 from backend.utils.audit import log_admin_action
+from backend.utils.uploads import validate_image_upload
 
 # Cloudinary Setup
 CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
@@ -117,6 +118,9 @@ class CollectionBannerService:
         """Upload image file to Cloudinary or local static uploads folder."""
         if not file or file.filename == '':
             return None, "No file selected."
+        filename, validation_error = validate_image_upload(file)
+        if validation_error:
+            return None, validation_error
 
         if CLOUDINARY_ENABLED:
             try:
@@ -132,8 +136,6 @@ class CollectionBannerService:
 
         # Local storage fallback
         try:
-            filename = secure_filename(file.filename)
-            filename = f"coll_banner_{int(time.time())}_{filename}"
             filepath = os.path.join(UPLOAD_FOLDER, filename)
             file.save(filepath)
 

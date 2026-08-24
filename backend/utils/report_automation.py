@@ -123,9 +123,11 @@ def seed_default_settings():
     try:
         res = db.session.execute(db.text("SELECT COUNT(*) FROM system_settings")).scalar()
         if res == 0:
-            owner_email = os.environ.get("EMAIL_ADDRESS") or "irshadkhatola2@gmail.com"
-            smtp_email = os.environ.get("MAIL_USERNAME") or os.environ.get("EMAIL_ADDRESS") or "SSJewellery2@gmail.com"
-            smtp_password = os.environ.get("MAIL_PASSWORD") or os.environ.get("EMAIL_APP_PASSWORD") or "gekyxzrepafcyhem"
+            owner_email = os.environ.get("REPORT_OWNER_EMAIL") or os.environ.get("EMAIL_ADDRESS")
+            smtp_email = os.environ.get("SMTP_EMAIL") or os.environ.get("MAIL_USERNAME") or os.environ.get("EMAIL_ADDRESS")
+            smtp_password = os.environ.get("SMTP_PASSWORD") or os.environ.get("MAIL_PASSWORD") or os.environ.get("EMAIL_APP_PASSWORD")
+            if not owner_email or not smtp_email or not smtp_password:
+                raise RuntimeError("Report owner and SMTP credentials must be configured in the environment")
             
             db.session.execute(db.text("""
                 INSERT INTO system_settings (setting_key, setting_value) VALUES 
@@ -996,11 +998,11 @@ def get_report_settings():
         
     # Fallback to env
     if not settings["owner_email"]:
-        settings["owner_email"] = os.environ.get("EMAIL_ADDRESS") or "irshadkhatola2@gmail.com"
+        settings["owner_email"] = os.environ.get("REPORT_OWNER_EMAIL") or os.environ.get("EMAIL_ADDRESS")
     if not settings["smtp_email"]:
-        settings["smtp_email"] = os.environ.get("MAIL_USERNAME") or os.environ.get("EMAIL_ADDRESS") or "SSJewellery2@gmail.com"
+        settings["smtp_email"] = os.environ.get("SMTP_EMAIL") or os.environ.get("MAIL_USERNAME") or os.environ.get("EMAIL_ADDRESS")
     if not settings["smtp_password"]:
-        settings["smtp_password"] = os.environ.get("MAIL_PASSWORD") or os.environ.get("EMAIL_APP_PASSWORD") or "gekyxzrepafcyhem"
+        settings["smtp_password"] = os.environ.get("SMTP_PASSWORD") or os.environ.get("MAIL_PASSWORD") or os.environ.get("EMAIL_APP_PASSWORD")
         
     return settings
 
@@ -1084,6 +1086,11 @@ def archive_and_cleanup_data(m, y):
     Archives and deletes completed target month data in database.
     If fails, it raises an exception to trigger transaction rollback.
     """
+    if db.engine.dialect.name == "postgresql":
+        raise RuntimeError(
+            "Archive/cleanup is disabled on PostgreSQL pending an Alembic-managed archive schema and reviewed upsert semantics"
+        )
+
     # 1. Fetch completed orders IDs
     orders_q = """
     SELECT id FROM orders 
@@ -1264,3 +1271,4 @@ def start_report_scheduler(app):
                 
     t = threading.Thread(target=scheduler_loop, daemon=True)
     t.start()
+    return t

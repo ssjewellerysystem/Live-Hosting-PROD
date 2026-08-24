@@ -8,6 +8,7 @@ from backend.models.category import Category
 from backend.models.category_banner import CategoryBanner
 from backend.middleware.auth import admin_required
 from backend.utils.audit import log_admin_action
+from backend.utils.uploads import validate_image_upload
 
 category_banners_bp = Blueprint('category_banners', __name__)
 
@@ -118,6 +119,9 @@ def upload_category_banner_image():
     file = request.files['image']
     if file.filename == '':
         return jsonify({"message": "No file selected."}), 400
+    filename, validation_error = validate_image_upload(file)
+    if validation_error:
+        return jsonify({"message": validation_error}), 400
 
     if CLOUDINARY_ENABLED:
         try:
@@ -133,8 +137,6 @@ def upload_category_banner_image():
 
     # Local storage fallback
     try:
-        filename = secure_filename(file.filename)
-        filename = f"cat_banner_{int(time.time())}_{filename}"
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
 

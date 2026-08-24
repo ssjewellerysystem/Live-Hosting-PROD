@@ -18,19 +18,16 @@ export const Login = () => {
 
   useEffect(() => {
     const queryParams = new URLSearchParams(location.search);
-    const oauthToken = queryParams.get('token');
-    const oauthUserStr = queryParams.get('user');
+    const oauthSuccess = queryParams.get('oauth') === 'success';
     const oauthError = queryParams.get('error');
 
-    if (oauthToken && oauthUserStr) {
-      try {
-        const decodedUser = JSON.parse(decodeURIComponent(oauthUserStr));
-        oauthLogin(oauthToken, decodedUser);
-        navigate(redirectDest, { replace: true });
-      } catch (err) {
-        console.error("Error logging in via OAuth callback:", err);
-        setError("OAuth login failed to parse user profile.");
-      }
+    if (oauthSuccess) {
+      axios.get(`${API_BASE_URL}/auth/oauth/session`, { withCredentials: true })
+        .then(({ data }) => {
+          oauthLogin(null, data.user);
+          navigate(redirectDest, { replace: true });
+        })
+        .catch(() => setError("OAuth session could not be established."));
     } else if (oauthError) {
       setError(decodeURIComponent(oauthError));
       navigate('/login', { replace: true });

@@ -4,7 +4,8 @@ import os
 import uuid
 import random
 import json
-from flask import Blueprint, request, jsonify, redirect, current_app
+import secrets
+from flask import Blueprint, request, jsonify, redirect, current_app, make_response, session
 import traceback
 from urllib.parse import urlparse, urlunparse
 import jwt
@@ -628,8 +629,7 @@ def forgot_password():
         raw_input = data.get("email") or data.get("email_or_mobile") or data.get("mobile")
         
         # Step 1: Logging Incoming Request
-        current_app.logger.info(f"[FORGOT PASSWORD LOG] Incoming request for email/mobile: '{raw_input}'")
-        print(f"[FORGOT PASSWORD LOG] Step 1: Incoming request for email/mobile: '{raw_input}'")
+        current_app.logger.info("Password-reset request received")
         
         # Step 1: Logging DB Connection Status & Database URI (password masked)
         safe_uri = get_safe_db_uri(Config.SQLALCHEMY_DATABASE_URI)
@@ -641,8 +641,7 @@ def forgot_password():
             current_app.logger.error(f"[FORGOT PASSWORD ERROR] DB Connection Check Failed: {conn_err}\n{traceback.format_exc()}")
             raise DatabaseException("Database error.", status_code=500)
             
-        current_app.logger.info(f"[FORGOT PASSWORD LOG] DB URI: {safe_uri} | DB Status: {db_conn_status}")
-        print(f"[FORGOT PASSWORD LOG] DB URI: {safe_uri} | DB Status: {db_conn_status}")
+        current_app.logger.info("Password-reset database connectivity check completed")
 
         if not raw_input or not str(raw_input).strip():
             current_app.logger.warning("[FORGOT PASSWORD LOG] Empty input provided.")
@@ -652,7 +651,7 @@ def forgot_password():
         clean_lower = clean_input.lower()
             
         if is_valid_email(clean_input) and not is_allowed_email_domain(clean_input):
-            current_app.logger.warning(f"[FORGOT PASSWORD LOG] Unsupported email domain: '{clean_input}'")
+            current_app.logger.warning("Password-reset request used an unsupported email domain")
             raise ValidationException("Only Gmail (@gmail.com) and Outlook (@outlook.com) email addresses are supported.", status_code=400)
 
         # Step 2 & 3: Fix User Lookup (email == input OR mobile == input, case-insensitive, trimmed)
@@ -690,12 +689,10 @@ def forgot_password():
             raise DatabaseException("Database error.", status_code=500)
         
         if not user_obj:
-            current_app.logger.info(f"[FORGOT PASSWORD LOG] Matched User: None (Account not found for '{clean_input}')")
-            print(f"[FORGOT PASSWORD LOG] Matched User: None (Account not found for '{clean_input}')")
+            current_app.logger.info("Password-reset account lookup returned no match")
             return jsonify({"success": False, "message": "Account not found."}), 404
             
-        current_app.logger.info(f"[FORGOT PASSWORD LOG] Matched User ID: {user_obj.id} | Matched Email: '{user_obj.email}' | Name: '{user_obj.name}'")
-        print(f"[FORGOT PASSWORD LOG] Matched User ID: {user_obj.id} | Matched Email: '{user_obj.email}' | Name: '{user_obj.name}'")
+        current_app.logger.info("Password-reset account lookup succeeded")
 
         # Step 4.5: Check Forgot Password OTP Rate Limit & Account Block
         is_allowed, is_blocked, block_msg = UserAttempt.check_and_record_otp_request(user_obj.id)
@@ -732,8 +729,7 @@ def forgot_password():
             )
             db.session.add(otp_record)
             db.session.commit()
-            current_app.logger.info(f"[FORGOT PASSWORD LOG] OTP generation: '{otp_code}' | OTP save: Success (expires at {expires_at})")
-            print(f"[FORGOT PASSWORD LOG] OTP generation: '{otp_code}' | OTP save: Success (expires at {expires_at})")
+            current_app.logger.info("Password-reset OTP generated and stored")
         except Exception as otp_save_err:
             db.session.rollback()
             current_app.logger.error(f"[FORGOT PASSWORD ERROR] Database failed during OTP save: {otp_save_err}\n{traceback.format_exc()}")
@@ -753,7 +749,7 @@ def forgot_password():
         
         # Step 4: SMTP Initialization & Transmission (QA & PRODUCTION ONLY)
         if not user_obj.email or "@" not in str(user_obj.email):
-            current_app.logger.error(f"[FORGOT PASSWORD ERROR] User ID {user_obj.id} has invalid or missing email: '{user_obj.email}'")
+            current_app.logger.error("Password-reset account has an invalid or missing email")
             try:
                 db.session.delete(otp_record)
                 db.session.commit()
@@ -761,13 +757,11 @@ def forgot_password():
                 db.session.rollback()
             raise SMTPException("Unable to send OTP email.", status_code=500)
 
-        current_app.logger.info(f"[FORGOT PASSWORD LOG] SMTP Initialization: Preparing email to '{user_obj.email}' via {Config.SMTP_HOST}:{Config.SMTP_PORT}...")
-        print(f"[FORGOT PASSWORD LOG] SMTP Initialization: Preparing email to '{user_obj.email}' via {Config.SMTP_HOST}:{Config.SMTP_PORT}...")
+        current_app.logger.info("Preparing password-reset email")
         
         try:
             email_result = send_forgot_password_otp(user_obj.email, otp_code, name=user_obj.name)
-            current_app.logger.info(f"[FORGOT PASSWORD LOG] SMTP Send Result: {email_result}")
-            print(f"[FORGOT PASSWORD LOG] SMTP Send Result: {email_result}")
+            current_app.logger.info("Password-reset email provider returned a result")
         except Exception as smtp_err:
             current_app.logger.error(f"[FORGOT PASSWORD ERROR] SMTP Send Exception: {smtp_err}\n{traceback.format_exc()}")
             try:
@@ -788,7 +782,7 @@ def forgot_password():
                 db.session.rollback()
             raise SMTPException("Unable to send OTP email.", status_code=500)
             
-        current_app.logger.info(f"[FORGOT PASSWORD SUCCESS] OTP email successfully dispatched to {user_obj.email}")
+        current_app.logger.info("Password-reset email dispatched")
         
         # Return 200 OK Response for QA & PRODUCTION (OTP never exposed)
         response_payload = {
@@ -916,7 +910,7 @@ def resend_reset_otp():
     otp_record.attempts = 0
     otp_record.resend_attempts += 1
     db.session.commit()
-    print(f"[RESEND RESET OTP] Step 2: New OTP '{otp_code}' generated for user '{user_obj.name}' ({user_obj.email})")
+    current_app.logger.info("Password-reset OTP regenerated and stored")
     
     # DEV Environment: Skip SMTP and return dev_otp in response directly
     if Config.IS_DEV:
@@ -931,11 +925,11 @@ def resend_reset_otp():
         }), 200
 
     # Send email via SMTP (QA & PRODUCTION ONLY)
-    print(f"[RESEND RESET OTP] Step 3: Initiating SMTP email dispatch to {user_obj.email}...")
+    current_app.logger.info("Initiating password-reset email dispatch")
     email_result = send_forgot_password_otp(user_obj.email, otp_code, name=user_obj.name)
     if not email_result:
         err_detail = email_result.get('error', 'SMTP connection failed') if isinstance(email_result, dict) else 'SMTP transmission failed'
-        print(f"[RESEND RESET OTP ERROR] SMTP failure for {user_obj.email}: {err_detail}")
+        current_app.logger.error("Password-reset email dispatch failed")
         otp_record.resend_attempts = max(0, otp_record.resend_attempts - 1)
         db.session.commit()
         return jsonify({
@@ -944,7 +938,7 @@ def resend_reset_otp():
             "error": err_detail
         }), 500
         
-    print(f"[RESEND RESET OTP SUCCESS] Password reset OTP email resent to {user_obj.email}")
+    current_app.logger.info("Password-reset email resent")
     return jsonify({
         "message": "Verification OTP resent successfully! Please check your email.",
         "success": True
@@ -1106,7 +1100,7 @@ def checkout_login_route():
     }), 200
 
 # Import token middleware for subsequent routes
-from backend.middleware.auth import token_required
+from backend.middleware.auth import token_required, admin_required
 
 def add_user_notification(user_id, title, message, notif_type="general", ticket_id=None, original_message=None):
     try:
@@ -1180,6 +1174,18 @@ def get_profile_route(current_user):
         user_data.pop("password", None)
         return jsonify({"user": user_data}), 200
     return jsonify({"message": "User not found"}), 404
+
+@auth_bp.route('/oauth/session', methods=['GET'])
+@token_required
+def oauth_session(current_user):
+    return jsonify({"user": current_user}), 200
+
+@auth_bp.route('/logout', methods=['POST'])
+def logout():
+    response = jsonify({"success": True})
+    response.delete_cookie("bb_token", path="/", secure=Config.JWT_COOKIE_SECURE,
+                           samesite=Config.JWT_COOKIE_SAMESITE)
+    return response, 200
 
 @auth_bp.route('/profile', methods=['PUT'])
 @token_required
@@ -1504,6 +1510,7 @@ def clear_read_notifications(current_user):
     return jsonify({"message": "Read notifications cleared"}), 200
 
 @auth_bp.route('/test-smtp', methods=['POST'])
+@admin_required
 def test_smtp():
     data = request.get_json() or {}
     email = data.get("email")
@@ -1531,16 +1538,13 @@ SSJewellery Team"""
         return jsonify({
             "message": "SMTP test failed.",
             "success": False,
-            "error": email_result.get("error"),
-            "smtp_status": email_result.get("status"),
-            "smtp_config": email_result.get("configuration")
+            "smtp_status": "failed"
         }), 500
         
     return jsonify({
         "message": "SMTP test succeeded! Test email sent successfully.",
         "success": True,
-        "smtp_status": email_result.get("status"),
-        "smtp_config": email_result.get("configuration")
+        "smtp_status": "ok"
     }), 200
 
 @auth_bp.route('/google/login')
@@ -1549,13 +1553,15 @@ def google_login():
     client_id = os.getenv("GOOGLE_CLIENT_ID")
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or (request.url_root.rstrip('/') + "/api/auth/google/callback")
     
-    print(f"[OAUTH REQUEST] Initiating Google login. Client ID: {client_id}, Redirect URI: {redirect_uri}")
+    current_app.logger.info("Initiating Google OAuth login")
     
     if not client_id:
         print("[OAUTH ERROR] Google Client ID is missing in environment variables.")
         return jsonify({"message": "Google Client ID is not configured."}), 500
         
     scope = "openid email profile"
+    state = secrets.token_urlsafe(32)
+    session["google_oauth_state"] = state
     auth_url = (
         "https://accounts.google.com/o/oauth2/v2/auth?"
         + urllib.parse.urlencode({
@@ -1563,11 +1569,11 @@ def google_login():
             "redirect_uri": redirect_uri,
             "response_type": "code",
             "scope": scope,
+            "state": state,
             "access_type": "offline",
             "prompt": "consent"
         })
     )
-    print(f"[OAUTH LOG] Redirecting user to Google OAuth: {auth_url}")
     return redirect(auth_url)
 
 @auth_bp.route('/google/callback')
@@ -1576,7 +1582,9 @@ def google_callback():
     import urllib.parse
     import urllib.error
     
-    print(f"[OAUTH CALLBACK] Google callback received. Request URL: {request.url}")
+    current_app.logger.info("Google OAuth callback received")
+    if not secrets.compare_digest(request.args.get("state", ""), session.pop("google_oauth_state", "")):
+        return redirect(f"{FRONTEND_URL}/login?error=Invalid+OAuth+state")
     
     code = request.args.get("code")
     if not code:
@@ -1588,7 +1596,7 @@ def google_callback():
     client_secret = os.getenv("GOOGLE_CLIENT_SECRET")
     redirect_uri = os.getenv("GOOGLE_REDIRECT_URI") or (request.url_root.rstrip('/') + "/api/auth/google/callback")
     
-    print(f"[OAUTH TOKEN VERIFICATION] Exchanging code for token. Client ID: {client_id}")
+    current_app.logger.info("Exchanging Google OAuth authorization code")
     
     # Exchange code for token
     token_url = "https://oauth2.googleapis.com/token"
@@ -1720,11 +1728,11 @@ def google_callback():
     }
     token = jwt.encode(payload, get_jwt_secret(), algorithm="HS256")
     
-    # Redirect back to frontend
-    user_json = json.dumps(user)
-    redirect_url = f"{FRONTEND_URL}/login?token={token}&user={urllib.parse.quote(user_json)}"
     print(f"[OAUTH SESSION CREATION] Login session created successfully for {mask_email(email)}. Redirecting to frontend.")
-    return redirect(redirect_url)
+    response = make_response(redirect(f"{FRONTEND_URL}/login?oauth=success"))
+    response.set_cookie("bb_token", token, httponly=True, secure=Config.JWT_COOKIE_SECURE,
+                        samesite=Config.JWT_COOKIE_SAMESITE, max_age=604800, path="/")
+    return response
 
 @auth_bp.route('/microsoft/login')
 def microsoft_login_route():
@@ -1732,13 +1740,15 @@ def microsoft_login_route():
     client_id = os.getenv("MICROSOFT_CLIENT_ID")
     redirect_uri = os.getenv("MICROSOFT_REDIRECT_URI") or (request.url_root.rstrip('/') + "/api/auth/microsoft/callback")
     
-    print(f"[OAUTH REQUEST] Initiating Microsoft login. Client ID: {client_id}, Redirect URI: {redirect_uri}")
+    current_app.logger.info("Initiating Microsoft OAuth login")
     
     if not client_id:
         print("[OAUTH ERROR] Microsoft Client ID is missing in environment variables.")
         return jsonify({"message": "Microsoft Client ID is not configured."}), 500
         
     scope = "openid profile email User.Read"
+    state = secrets.token_urlsafe(32)
+    session["microsoft_oauth_state"] = state
     auth_url = (
         "https://login.microsoftonline.com/common/oauth2/v2.0/authorize?"
         + urllib.parse.urlencode({
@@ -1746,10 +1756,10 @@ def microsoft_login_route():
             "redirect_uri": redirect_uri,
             "response_type": "code",
             "scope": scope,
+            "state": state,
             "response_mode": "query"
         })
     )
-    print(f"[OAUTH LOG] Redirecting user to Microsoft OAuth: {auth_url}")
     return redirect(auth_url)
 
 @auth_bp.route('/microsoft/callback')
@@ -1758,7 +1768,9 @@ def microsoft_callback():
     import urllib.parse
     import urllib.error
     
-    print(f"[OAUTH CALLBACK] Microsoft callback received. Request URL: {request.url}")
+    current_app.logger.info("Microsoft OAuth callback received")
+    if not secrets.compare_digest(request.args.get("state", ""), session.pop("microsoft_oauth_state", "")):
+        return redirect(f"{FRONTEND_URL}/login?error=Invalid+OAuth+state")
     
     code = request.args.get("code")
     if not code:
@@ -1770,7 +1782,7 @@ def microsoft_callback():
     client_secret = os.getenv("MICROSOFT_CLIENT_SECRET")
     redirect_uri = os.getenv("MICROSOFT_REDIRECT_URI") or (request.url_root.rstrip('/') + "/api/auth/microsoft/callback")
     
-    print(f"[OAUTH TOKEN VERIFICATION] Exchanging code for token. Client ID: {client_id}")
+    current_app.logger.info("Exchanging Microsoft OAuth authorization code")
     
     # Exchange code for token
     token_url = "https://login.microsoftonline.com/common/oauth2/v2.0/token"
@@ -1914,11 +1926,11 @@ def microsoft_callback():
     }
     token = jwt.encode(payload, get_jwt_secret(), algorithm="HS256")
     
-    # Redirect back to frontend
-    user_json = json.dumps(user)
-    redirect_url = f"{FRONTEND_URL}/login?token={token}&user={urllib.parse.quote(user_json)}"
     print(f"[OAUTH SESSION CREATION] Login session created successfully for {mask_email(email)}. Redirecting to frontend.")
-    return redirect(redirect_url)
+    response = make_response(redirect(f"{FRONTEND_URL}/login?oauth=success"))
+    response.set_cookie("bb_token", token, httponly=True, secure=Config.JWT_COOKIE_SECURE,
+                        samesite=Config.JWT_COOKIE_SAMESITE, max_age=604800, path="/")
+    return response
 
 @auth_bp.route('/microsoft-login', methods=['POST'])
 def microsoft_login():

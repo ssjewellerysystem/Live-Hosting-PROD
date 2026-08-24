@@ -34,7 +34,7 @@ def test_environment_architecture():
 
         db_uri_str = str(Config.SQLALCHEMY_DATABASE_URI) if Config.SQLALCHEMY_DATABASE_URI else "None"
         print(f"  - Active ENVIRONMENT: {Config.ENVIRONMENT}")
-        print(f"  - Database URI Resolved: {db_uri_str[:45]}...")
+        print("  - Database URI resolved (value redacted)")
 
         print(f"  - Logging Level: {Config.LOGGING_LEVEL}")
         print(f"  - Feature Flags:")

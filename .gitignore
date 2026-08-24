@@ -1,0 +1,49 @@
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+*.cer
+*.p12
+*.pfx
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Logs, local databases, and temporary files
+logs/
+*.log
+*.db
+*.sqlite
+*.sqlite3
+*.tmp
+*.temp
+*.bak
+
+# IDE and OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+Thumbs.db
+
+# Frontend build/dependencies
+node_modules/
+frontend/dist/
+dist/
+
+# Runtime-generated files (existing tracked files are intentionally untouched)
+backend/static/uploads/
+backend/reports/
+

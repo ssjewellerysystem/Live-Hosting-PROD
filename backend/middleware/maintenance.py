@@ -12,16 +12,15 @@ def is_admin_request():
     Helper function to check if the current request is performed by an authenticated admin.
     Checks Authorization Bearer header for valid admin token.
     """
-    if request.path.startswith('/api/admin'):
-        return True
-    
     auth_header = request.headers.get('Authorization', '')
     if auth_header.startswith('Bearer '):
         token = auth_header.split(" ")[1]
         try:
             data = jwt.decode(token, JWT_SECRET, algorithms=["HS256"])
-            if data.get("is_admin") is True:
-                return True
+            admin_id = data.get("admin_id")
+            if admin_id:
+                from backend.models.admin import AdminModel
+                return AdminModel.query.get(int(admin_id)) is not None
         except Exception:
             pass
     return False
@@ -35,6 +34,8 @@ def check_maintenance_mode():
     """
     # Always allow OPTIONS requests for CORS preflight
     if request.method == 'OPTIONS':
+        return None
+    if request.path in ('/health', '/ready'):
         return None
 
     # Check if maintenance mode is ON in database

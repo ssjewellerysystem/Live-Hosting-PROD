@@ -79,7 +79,8 @@ def submit_contact_form():
 
 
 @support_bp.route('/<int:ticket_id>/reply', methods=['POST'])
-def reply_to_ticket(ticket_id):
+@token_required
+def reply_to_ticket(current_user, ticket_id):
     from backend.models.support import SupportModel, SupportReplyModel
     from backend.models.user import UserModel
     from backend.routes.auth import add_user_notification
@@ -89,6 +90,10 @@ def reply_to_ticket(ticket_id):
         ticket = SupportModel.query.with_for_update().get(ticket_id)
         if not ticket:
             return jsonify({"message": "Support ticket not found."}), 404
+        caller_id = int(current_user.get("id") or current_user.get("_id"))
+        caller_is_admin = bool(current_user.get("is_admin"))
+        if not caller_is_admin and ticket.user_id != caller_id:
+            return jsonify({"message": "Access denied."}), 403
             
         data = request.get_json() or {}
         sender = data.get("sender") or ticket.name
@@ -104,20 +109,7 @@ def reply_to_ticket(ticket_id):
         )
         db.session.add(reply)
         
-        # Check if caller is admin via Authorization header or sender name
-        caller_is_admin = False
-        auth_header = request.headers.get("Authorization") or request.headers.get("authorization")
-        if auth_header:
-            try:
-                token = auth_header.split(" ")[1] if auth_header.startswith("Bearer ") else auth_header
-                from backend.middleware.auth import decode_jwt_token, is_admin_role
-                decoded_data, err = decode_jwt_token(token)
-                if decoded_data and is_admin_role(decoded_data):
-                    caller_is_admin = True
-            except Exception:
-                pass
-
-        is_admin_reply = caller_is_admin or (sender in ["Admin Support", "Admin"]) or ("admin" in str(sender).lower())
+        is_admin_reply = caller_is_admin
         
         if is_admin_reply:
             ticket.status = "Replied"

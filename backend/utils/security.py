@@ -22,9 +22,9 @@ if key_env:
         except Exception:
             ENCRYPTION_KEY = hashlib.sha256(key_env.encode('utf-8')).digest()
 else:
-    # Use standard static key for SSJewellery database encryption
-    db_secret = "supersecret_SSJewellery_key_123"
-    ENCRYPTION_KEY = hashlib.sha256(db_secret.encode('utf-8')).digest()
+    if (os.getenv("ENVIRONMENT") or "DEV").strip().upper() in ("PROD", "PRODUCTION"):
+        raise RuntimeError("ENCRYPTION_KEY is required in production")
+    ENCRYPTION_KEY = hashlib.sha256(b"development-only-encryption-key").digest()
 
 def get_deterministic_iv(plain_text):
     """Derive a 16-byte IV deterministically from the plaintext."""
@@ -81,22 +81,7 @@ def decrypt(cipher_text):
     except Exception:
         pass
 
-    # Attempt fallback with standard static key for cross-environment compatibility
-    try:
-        default_key = hashlib.sha256("supersecret_SSJewellery_key_123".encode('utf-8')).digest()
-        combined = base64.b64decode(encoded.encode('utf-8'))
-        iv = combined[:16]
-        ciphertext = combined[16:]
-        
-        cipher = Cipher(algorithms.AES(default_key), modes.CBC(iv), backend=default_backend())
-        decryptor = cipher.decryptor()
-        padded_data = decryptor.update(ciphertext) + decryptor.finalize()
-        unpadder = padding.PKCS7(128).unpadder()
-        plain_text = unpadder.update(padded_data) + unpadder.finalize()
-        return plain_text.decode('utf-8')
-    except Exception as e:
-        print(f"Decryption error: {e}")
-        return cipher_str
+    return cipher_str
 
 def mask_email(email):
     """Mask email as ir**********@gmail.com."""
