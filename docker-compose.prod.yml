@@ -1,0 +1,23 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: ssjewellery-backend:local
+    env_file:
+      - /opt/ssjewellery/.env
+    ports:
+      - "127.0.0.1:5005:5005"
+    volumes:
+      - /opt/ssjewellery/uploads:/app/backend/static/uploads
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5005/health', timeout=3).read()"
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
