@@ -26,6 +26,15 @@ else:
         raise RuntimeError("ENCRYPTION_KEY is required in production")
     ENCRYPTION_KEY = hashlib.sha256(b"development-only-encryption-key").digest()
 
+# Optional non-secret deployment guard. Configure the same fingerprint on every
+# service that accesses the same encrypted database to catch a wrong key early.
+ENCRYPTION_KEY_FINGERPRINT = hashlib.sha256(ENCRYPTION_KEY).hexdigest()[:16]
+expected_fingerprint = os.getenv("ENCRYPTION_KEY_FINGERPRINT", "").strip().lower()
+if expected_fingerprint and expected_fingerprint != ENCRYPTION_KEY_FINGERPRINT:
+    raise RuntimeError(
+        "ENCRYPTION_KEY does not match ENCRYPTION_KEY_FINGERPRINT; refusing to start"
+    )
+
 def get_deterministic_iv(plain_text):
     """Derive a 16-byte IV deterministically from the plaintext."""
     h = hashlib.sha256(plain_text.encode('utf-8')).digest()

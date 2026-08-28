@@ -1,9 +1,6 @@
 services:
   backend:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    image: ssjewellery-backend:local
+    image: ${BACKEND_IMAGE:?BACKEND_IMAGE must be set}
     env_file:
       - /opt/ssjewellery/.env
     ports:

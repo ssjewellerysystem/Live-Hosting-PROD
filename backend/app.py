@@ -166,7 +166,7 @@ def root_send_otp():
     
     # Placeholder for MSG91 / real SMS service integration
     # When switching to production later, replace this print/email flow with actual MSG91 SDK call
-    if Config.IS_DEV:
+    if Config.EXPOSE_OTP_IN_RESPONSE:
         app.logger.debug("OTP generated for a development request")
     
     # If it is email, we can also email it (as in auth/send-otp)
@@ -193,7 +193,7 @@ def root_send_otp():
         "message": "OTP sent successfully! Please check your console or email.",
         "success": True
     }
-    if Config.IS_DEV and os.getenv("OTP_MODE", "development").lower() == "development":
+    if Config.EXPOSE_OTP_IN_RESPONSE:
         response_data["otp_debug"] = otp
     return jsonify(response_data), 200
 

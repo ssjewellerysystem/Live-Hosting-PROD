@@ -19,16 +19,22 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('react') || id.includes('react-dom') || id.includes('react-router-dom')) {
-              return 'vendor-react';
-            }
-            if (id.includes('framer-motion')) {
-              return 'vendor-framer-motion';
-            }
-            if (id.includes('lucide-react')) {
+            const normalizedId = id.replace(/\\/g, '/');
+            if (normalizedId.includes('/lucide-react/')) {
               return 'vendor-lucide';
             }
-            if (id.includes('axios')) {
+            if (
+              normalizedId.includes('/react/') ||
+              normalizedId.includes('/react-dom/') ||
+              normalizedId.includes('/react-router/') ||
+              normalizedId.includes('/react-router-dom/')
+            ) {
+              return 'vendor-react';
+            }
+            if (normalizedId.includes('/framer-motion/')) {
+              return 'vendor-framer-motion';
+            }
+            if (normalizedId.includes('/axios/')) {
               return 'vendor-axios';
             }
             return 'vendor-libs';

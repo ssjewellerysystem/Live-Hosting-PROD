@@ -2,16 +2,15 @@ import React from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Navbar } from './components/Navbar';
-import { Footer } from './components/Footer';
-import { LiveChat } from './components/LiveChat';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { LanguageSelectionModal } from './components/LanguageSelectionModal';
 import { HighDemandOverlay } from './components/HighDemandOverlay';
 
-import { Home } from './pages/Home';
-import { GlobalVideoFooter } from './components/GlobalVideoFooter';
-
-// Lazy load other pages for route-based code splitting
+// Route and non-critical global UI code is split out of the startup bundle.
+const Home = React.lazy(() => import('./pages/Home').then(m => ({ default: m.Home })));
+const Footer = React.lazy(() => import('./components/Footer').then(m => ({ default: m.Footer })));
+const LiveChat = React.lazy(() => import('./components/LiveChat').then(m => ({ default: m.LiveChat })));
+const GlobalVideoFooter = React.lazy(() => import('./components/GlobalVideoFooter').then(m => ({ default: m.GlobalVideoFooter })));
 const ProductDetails = React.lazy(() => import('./pages/ProductDetails').then(m => ({ default: m.ProductDetails })));
 const Cart = React.lazy(() => import('./pages/Cart').then(m => ({ default: m.Cart })));
 const Checkout = React.lazy(() => import('./pages/Checkout').then(m => ({ default: m.Checkout })));
@@ -242,13 +241,15 @@ function App() {
         </main>
 
         {/* Grid footer links panel - ONLY visible on Profile page */}
-        {location.pathname === '/profile' && <Footer />}
+        <React.Suspense fallback={null}>
+          {location.pathname === '/profile' && <Footer />}
 
-        {/* Global Video Footer - Only shown on user side, hidden on admin side */}
-        {!location.pathname.startsWith('/admin') && <GlobalVideoFooter />}
+          {/* Global Video Footer - Only shown on user side, hidden on admin side */}
+          {!location.pathname.startsWith('/admin') && <GlobalVideoFooter />}
 
-        {/* Interactive chatbot bubble widget */}
-        <LiveChat />
+          {/* Interactive chatbot bubble widget */}
+          <LiveChat />
+        </React.Suspense>
 
         {/* Global Image Lightbox Zoom Modal */}
         <AnimatePresence>

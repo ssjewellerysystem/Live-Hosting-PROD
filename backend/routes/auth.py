@@ -18,6 +18,7 @@ from backend.models.user_attempt import UserAttempt
 from backend.models.user_login_attempt import UserLoginAttempt
 from backend.utils.helpers import generate_otp, verify_otp, is_valid_email, is_allowed_email_domain, normalize_email
 from backend.utils.email_service import send_email, send_forgot_password_otp, send_registration_otp
+from backend.utils.mobile_otp import send_mobile_otp
 from backend.utils.timezone import format_iso_datetime, get_ist_time
 from backend.utils.security import mask_email, mask_name
 
@@ -269,7 +270,7 @@ def send_otp_route():
     db.session.commit()
     
     # DEV Environment: Skip SMTP and return dev_otp directly
-    if Config.IS_DEV:
+    if Config.EXPOSE_OTP_IN_RESPONSE:
         current_app.logger.info(f"[REGISTRATION DEV LOG] DEV mode active. Skipping SMTP completely. Returning dev_otp.")
         print(f"[REGISTRATION DEV LOG] DEV mode active. Skipping SMTP completely. Returning dev_otp.")
         return jsonify({
@@ -280,23 +281,7 @@ def send_otp_route():
         }), 200
         
     # Send email via SMTP (QA & PRODUCTION ONLY)
-    subject = "SSJewellery Verification Code"
-    body = f"""Hello,
-
-Welcome to SSJewellery.
-
-Your verification code is:
-
-{otp_code}
-
-This OTP is valid for 5 minutes.
-
-Do not share this code with anyone.
-
-Regards,
-SSJewellery Team"""
-    
-    email_result = send_email(email, subject, body)
+    email_result = send_registration_otp(email, otp_code, name=name)
     if not email_result:
         db.session.delete(otp_record)
         db.session.commit()
@@ -306,6 +291,14 @@ SSJewellery Team"""
             "smtp_status": email_result.get("status"),
             "smtp_config": email_result.get("configuration")
         }), 500
+
+    mobile_result = send_mobile_otp(mobile, otp_code, purpose="registration")
+    if Config.ENABLE_MOBILE_OTP and not mobile_result:
+        current_app.logger.warning(
+            "Registration email OTP succeeded but mobile OTP delivery failed: provider=%s status=%s",
+            mobile_result.get("provider"),
+            mobile_result.get("status"),
+        )
         
     return jsonify({
         "message": "Verification OTP sent successfully! Please check your email.",
@@ -436,7 +429,7 @@ def resend_otp_route():
     db.session.commit()
     
     # DEV Environment: Skip SMTP and return dev_otp directly
-    if Config.IS_DEV:
+    if Config.EXPOSE_OTP_IN_RESPONSE:
         current_app.logger.info(f"[REGISTRATION RESEND DEV LOG] DEV mode active. Skipping SMTP completely. Returning dev_otp.")
         print(f"[REGISTRATION RESEND DEV LOG] DEV mode active. Skipping SMTP completely. Returning dev_otp.")
         return jsonify({
@@ -447,23 +440,7 @@ def resend_otp_route():
         }), 200
         
     # Send email via SMTP (QA & PRODUCTION ONLY)
-    subject = "SSJewellery Verification Code"
-    body = f"""Hello,
-
-Welcome to SSJewellery.
-
-Your verification code is:
-
-{otp_code}
-
-This OTP is valid for 5 minutes.
-
-Do not share this code with anyone.
-
-Regards,
-SSJewellery Team"""
-    
-    email_result = send_email(email, subject, body)
+    email_result = send_registration_otp(email, otp_code)
     if not email_result:
         otp_record.resend_attempts = max(0, otp_record.resend_attempts - 1)
         db.session.commit()
@@ -473,6 +450,18 @@ SSJewellery Team"""
             "smtp_status": email_result.get("status"),
             "smtp_config": email_result.get("configuration")
         }), 500
+
+    try:
+        resend_mobile = json.loads(otp_record.temporary_user_data or "{}").get("mobile")
+    except (TypeError, ValueError):
+        resend_mobile = None
+    mobile_result = send_mobile_otp(resend_mobile, otp_code, purpose="registration_resend")
+    if Config.ENABLE_MOBILE_OTP and not mobile_result:
+        current_app.logger.warning(
+            "Registration OTP resend could not use mobile delivery: provider=%s status=%s",
+            mobile_result.get("provider"),
+            mobile_result.get("status"),
+        )
         
     return jsonify({
         "message": "Verification OTP resent successfully! Please check your email.",
@@ -736,7 +725,7 @@ def forgot_password():
             raise DatabaseException("Database error.", status_code=500)
 
         # DEV Environment: Skip SMTP and return dev_otp in response directly
-        if Config.IS_DEV:
+        if Config.EXPOSE_OTP_IN_RESPONSE:
             current_app.logger.info(f"[FORGOT PASSWORD DEV LOG] DEV mode active. Skipping SMTP completely. Returning dev_otp.")
             print(f"[FORGOT PASSWORD DEV LOG] DEV mode active. Skipping SMTP completely. Returning dev_otp.")
             return jsonify({
@@ -913,7 +902,7 @@ def resend_reset_otp():
     current_app.logger.info("Password-reset OTP regenerated and stored")
     
     # DEV Environment: Skip SMTP and return dev_otp in response directly
-    if Config.IS_DEV:
+    if Config.EXPOSE_OTP_IN_RESPONSE:
         current_app.logger.info(f"[RESEND RESET OTP DEV LOG] DEV mode active. Skipping SMTP completely. Returning dev_otp.")
         print(f"[RESEND RESET OTP DEV LOG] DEV mode active. Skipping SMTP completely. Returning dev_otp.")
         return jsonify({

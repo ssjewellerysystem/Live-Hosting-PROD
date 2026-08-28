@@ -178,7 +178,12 @@ class Config:
     ENABLE_EMAIL_FORGOT_PASSWORD_OTP = _get_bool_env("ENABLE_EMAIL_FORGOT_PASSWORD_OTP", True)
     ENABLE_EMAIL_ORDER_CONFIRMATION = _get_bool_env("ENABLE_EMAIL_ORDER_CONFIRMATION", True)
     ENABLE_EMAIL_BUY_REQUEST_CONFIRMATION = _get_bool_env("ENABLE_EMAIL_BUY_REQUEST_CONFIRMATION", True)
-    ENABLE_EMAIL_REGISTRATION_OTP = _get_bool_env("ENABLE_EMAIL_REGISTRATION_OTP", False)
+    ENABLE_EMAIL_REGISTRATION_OTP = _get_bool_env("ENABLE_EMAIL_REGISTRATION_OTP", True)
+    # OTPs may only be returned by explicitly opted-in local development.
+    # A public Render DEV environment must leave this false and use SMTP.
+    EXPOSE_OTP_IN_RESPONSE = IS_DEV and _get_bool_env("EXPOSE_OTP_IN_RESPONSE", False)
+    ENABLE_MOBILE_OTP = _get_bool_env("ENABLE_MOBILE_OTP", False)
+    MOBILE_OTP_PROVIDER = (os.environ.get("MOBILE_OTP_PROVIDER") or "disabled").strip().lower()
     ENABLE_PUSH_NOTIFICATIONS = _get_bool_env("ENABLE_PUSH_NOTIFICATIONS", default_feature_flag)
     ENABLE_WEBHOOKS = _get_bool_env("ENABLE_WEBHOOKS", default_feature_flag)
     ENABLE_ANALYTICS = _get_bool_env("ENABLE_ANALYTICS", default_feature_flag)
@@ -212,7 +217,7 @@ class Config:
     SMTP_TLS = True
 
     # Sensitive SMTP Credentials (Runtime OS Environment Variables Only)
-    SMTP_EMAIL = os.environ.get("SMTP_EMAIL") or os.environ.get("MAIL_USERNAME") or os.environ.get("EMAIL_ADDRESS")
+    SMTP_EMAIL = os.environ.get("SMTP_EMAIL") or os.environ.get("MAIL_USERNAME") or os.environ.get("EMAIL_ADDRESS") or "ssjewellerysystem@gmail.com"
     SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD") or os.environ.get("MAIL_PASSWORD") or os.environ.get("EMAIL_APP_PASSWORD")
     SMTP_FROM = f"SSJewellery <{SMTP_EMAIL}>" if SMTP_EMAIL else None
 
