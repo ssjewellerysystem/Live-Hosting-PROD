@@ -308,10 +308,10 @@ def get_registration_otp_html(name, otp_code):
     content = f"""
     <h2 style="color:#3F1D5A;margin-top:0;">Welcome to SSJewellery!</h2>
     <p>{customer_greeting}</p>
-    <p>Thank you for creating an account with SSJewellery. Please enter the following One-Time Password (OTP) to complete your account registration:</p>
+    <p>Thank you for choosing SSJewellery. We’re delighted to have you with us.:</p>
 
     <div class="otp-box">
-        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Your Registration Verification OTP</div>
+        <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Please use this</div>
         <div class="otp-code">{otp_code}</div>
         <div style="font-size:12px;color:#dc2626;font-weight:bold;margin-top:6px;">
         
