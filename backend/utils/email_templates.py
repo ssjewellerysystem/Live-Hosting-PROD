@@ -318,6 +318,6 @@ def get_registration_otp_html(name, otp_code):
         Valid for 5 minutes</div>
     </div>
 
-    <p style="font-size:12px;color:#64748b;">If you did not initiate this account creation, please ignore this email.</p>
+    <p style="font-size:12px;color:#64748b;"><p>If this was not requested by you, you can ignore this message.</p>.</p>
     """
-    return _get_base_template(content, preview_text=f"Welcome to SSJewellery! Your verification OTP: {otp_code}")
+    return _get_base_template(content, preview_text=f"preview_text="Thank you for choosing SSJewellery": {otp_code}")
