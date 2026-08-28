@@ -20,6 +20,7 @@ jobs:
   test:
     name: Safe backend tests
     runs-on: ubuntu-22.04
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -43,8 +44,10 @@ jobs:
     name: Build and publish ARM64 image
     needs: test
     runs-on: ubuntu-22.04
+
     outputs:
       image: ${{ steps.image.outputs.sha_image }}
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -54,7 +57,9 @@ jobs:
         shell: bash
         run: |
           set -Eeuo pipefail
+
           image_name="${REGISTRY}/${GITHUB_REPOSITORY,,}"
+
           echo "name=${image_name}" >> "$GITHUB_OUTPUT"
           echo "sha_image=${image_name}:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
 
@@ -89,6 +94,7 @@ jobs:
     needs: build
     runs-on: ubuntu-22.04
     environment: production
+
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -101,10 +107,18 @@ jobs:
           OCI_SSH_PRIVATE_KEY: ${{ secrets.OCI_SSH_PRIVATE_KEY }}
         run: |
           set -Eeuo pipefail
+
           install -d -m 700 "$HOME/.ssh"
+
           printf '%s\n' "$OCI_SSH_PRIVATE_KEY" > "$HOME/.ssh/id_oci"
+
           chmod 600 "$HOME/.ssh/id_oci"
-          ssh-keyscan -p "$OCI_SSH_PORT" -H "$OCI_HOST" > "$HOME/.ssh/known_hosts"
+
+          ssh-keyscan \
+            -p "$OCI_SSH_PORT" \
+            -H "$OCI_HOST" \
+            > "$HOME/.ssh/known_hosts"
+
           chmod 600 "$HOME/.ssh/known_hosts"
 
       - name: Upload production Compose definition
@@ -115,7 +129,10 @@ jobs:
           OCI_SSH_PORT: ${{ secrets.OCI_SSH_PORT }}
         run: |
           set -Eeuo pipefail
-          scp -i "$HOME/.ssh/id_oci" -P "$OCI_SSH_PORT" \
+
+          scp \
+            -i "$HOME/.ssh/id_oci" \
+            -P "$OCI_SSH_PORT" \
             docker-compose.prod.yml \
             "${OCI_USER}@${OCI_HOST}:/opt/ssjewellery/docker-compose.prod.yml"
 
@@ -126,65 +143,227 @@ jobs:
           OCI_USER: ${{ secrets.OCI_USER }}
           OCI_SSH_PORT: ${{ secrets.OCI_SSH_PORT }}
           BACKEND_IMAGE: ${{ needs.build.outputs.image }}
+
         run: |
           set -Eeuo pipefail
-          ssh -i "$HOME/.ssh/id_oci" -p "$OCI_SSH_PORT" \
-            "${OCI_USER}@${OCI_HOST}" bash -s -- "$BACKEND_IMAGE" <<'REMOTE_SCRIPT'
+
+          ssh \
+            -i "$HOME/.ssh/id_oci" \
+            -p "$OCI_SSH_PORT" \
+            "${OCI_USER}@${OCI_HOST}" \
+            bash -s -- "$BACKEND_IMAGE" <<'REMOTE_SCRIPT'
+
           set -Eeuo pipefail
 
-          readonly ROOT=/opt/ssjewellery
+          readonly ROOT="/opt/ssjewellery"
           readonly DEPLOY_DIR="$ROOT/deploy"
           readonly COMPOSE_FILE="$ROOT/docker-compose.prod.yml"
           readonly CURRENT_IMAGE_FILE="$DEPLOY_DIR/current-image.env"
           readonly PREVIOUS_IMAGE_FILE="$DEPLOY_DIR/previous-image.env"
+          readonly COMPOSE_PROJECT="live-hosting-prod"
           readonly NEW_IMAGE="$1"
 
-          mkdir -p "$DEPLOY_DIR" "$ROOT/uploads"
-          test -f "$ROOT/.env"
-          test -f "$COMPOSE_FILE"
+          echo "=========================================="
+          echo "Starting production backend deployment"
+          echo "Image: $NEW_IMAGE"
+          echo "=========================================="
 
-          echo "Pulling immutable backend image: $NEW_IMAGE"
+          mkdir -p "$DEPLOY_DIR"
+          mkdir -p "$ROOT/uploads"
+
+          if [[ ! -f "$ROOT/.env" ]]; then
+            echo "ERROR: Production .env file is missing"
+            exit 1
+          fi
+
+          if [[ ! -f "$COMPOSE_FILE" ]]; then
+            echo "ERROR: docker-compose.prod.yml is missing"
+            exit 1
+          fi
+
+          echo "Pulling immutable backend image:"
+          echo "$NEW_IMAGE"
+
           docker pull "$NEW_IMAGE"
 
+          echo "Image pull completed"
+
           echo "Running database migrations before backend replacement"
-          BACKEND_IMAGE="$NEW_IMAGE" docker compose -f "$COMPOSE_FILE" \
-            run --rm --no-deps backend flask --app backend.app db upgrade
+
+          BACKEND_IMAGE="$NEW_IMAGE" \
+            docker compose \
+              -p "$COMPOSE_PROJECT" \
+              -f "$COMPOSE_FILE" \
+              run \
+              -T \
+              --rm \
+              --no-deps \
+              backend \
+              flask --app backend.app db upgrade \
+              </dev/null
+
+          echo "Database migrations completed successfully"
 
           if [[ -f "$CURRENT_IMAGE_FILE" ]]; then
-            cp "$CURRENT_IMAGE_FILE" "$PREVIOUS_IMAGE_FILE"
-          fi
-          printf 'BACKEND_IMAGE=%s\n' "$NEW_IMAGE" > "$CURRENT_IMAGE_FILE.tmp"
-          mv "$CURRENT_IMAGE_FILE.tmp" "$CURRENT_IMAGE_FILE"
 
-          docker compose --env-file "$CURRENT_IMAGE_FILE" -f "$COMPOSE_FILE" \
-            up -d --no-deps --force-recreate backend
+            echo "Saving currently deployed image as previous image"
+
+            cp \
+              "$CURRENT_IMAGE_FILE" \
+              "$PREVIOUS_IMAGE_FILE"
+
+          elif docker inspect \
+            "${COMPOSE_PROJECT}-backend-1" \
+            >/dev/null 2>&1; then
+
+            echo "No current-image.env found"
+            echo "Detecting currently running Docker image"
+
+            OLD_IMAGE="$(
+              docker inspect \
+                --format='{{.Config.Image}}' \
+                "${COMPOSE_PROJECT}-backend-1"
+            )"
+
+            printf 'BACKEND_IMAGE=%s\n' "$OLD_IMAGE" \
+              > "$PREVIOUS_IMAGE_FILE"
+
+            echo "Previous image recorded:"
+            echo "$OLD_IMAGE"
+
+          else
+
+            echo "No previous backend container found"
+
+          fi
+
+          echo "Recording new production image"
+
+          printf 'BACKEND_IMAGE=%s\n' "$NEW_IMAGE" \
+            > "$CURRENT_IMAGE_FILE.tmp"
+
+          mv \
+            "$CURRENT_IMAGE_FILE.tmp" \
+            "$CURRENT_IMAGE_FILE"
+
+          echo "Deploying backend container"
+
+          docker compose \
+            -p "$COMPOSE_PROJECT" \
+            --env-file "$CURRENT_IMAGE_FILE" \
+            -f "$COMPOSE_FILE" \
+            up \
+            -d \
+            --no-deps \
+            --force-recreate \
+            backend
+
+          echo "Backend container started"
+
+          echo "Waiting for backend health endpoint"
 
           healthy=false
+
           for attempt in $(seq 1 36); do
-            if curl --fail --silent --show-error --max-time 5 \
-              http://127.0.0.1:5005/health >/dev/null; then
+
+            if curl \
+              --fail \
+              --silent \
+              --show-error \
+              --max-time 5 \
+              http://127.0.0.1:5005/health \
+              >/dev/null; then
+
               healthy=true
+
+              echo "Backend health check passed"
+
               break
+
             fi
+
             echo "Waiting for backend health ($attempt/36)"
+
             sleep 5
+
           done
 
           if [[ "$healthy" != true ]]; then
-            echo "Backend failed its health check"
-            docker compose --env-file "$CURRENT_IMAGE_FILE" -f "$COMPOSE_FILE" ps
-            docker compose --env-file "$CURRENT_IMAGE_FILE" -f "$COMPOSE_FILE" logs --tail=200 backend
+
+            echo "ERROR: Backend failed its health check"
+
+            echo "Current container status:"
+
+            docker compose \
+              -p "$COMPOSE_PROJECT" \
+              --env-file "$CURRENT_IMAGE_FILE" \
+              -f "$COMPOSE_FILE" \
+              ps
+
+            echo "Backend logs:"
+
+            docker compose \
+              -p "$COMPOSE_PROJECT" \
+              --env-file "$CURRENT_IMAGE_FILE" \
+              -f "$COMPOSE_FILE" \
+              logs \
+              --tail=200 \
+              backend
+
             exit 1
+
           fi
 
-          if ! curl --fail --silent --show-error --max-time 10 \
-            http://127.0.0.1:5005/ready >/dev/null; then
-            echo "Backend failed its readiness check"
-            docker compose --env-file "$CURRENT_IMAGE_FILE" -f "$COMPOSE_FILE" ps
-            docker compose --env-file "$CURRENT_IMAGE_FILE" -f "$COMPOSE_FILE" logs --tail=200 backend
+          echo "Checking backend readiness endpoint"
+
+          if ! curl \
+            --fail \
+            --silent \
+            --show-error \
+            --max-time 10 \
+            http://127.0.0.1:5005/ready \
+            >/dev/null; then
+
+            echo "ERROR: Backend failed its readiness check"
+
+            docker compose \
+              -p "$COMPOSE_PROJECT" \
+              --env-file "$CURRENT_IMAGE_FILE" \
+              -f "$COMPOSE_FILE" \
+              ps
+
+            docker compose \
+              -p "$COMPOSE_PROJECT" \
+              --env-file "$CURRENT_IMAGE_FILE" \
+              -f "$COMPOSE_FILE" \
+              logs \
+              --tail=200 \
+              backend
+
             exit 1
+
           fi
 
-          echo "Backend health and readiness checks passed"
+          echo "Backend readiness check passed"
+
+          echo "Currently deployed image:"
+
+          cat "$CURRENT_IMAGE_FILE"
+
+          echo "Production container status:"
+
+          docker compose \
+            -p "$COMPOSE_PROJECT" \
+            --env-file "$CURRENT_IMAGE_FILE" \
+            -f "$COMPOSE_FILE" \
+            ps
+
+          echo "Removing unused Docker image layers"
+
           docker image prune --force
+
+          echo "=========================================="
+          echo "Production deployment completed successfully"
+          echo "=========================================="
+
           REMOTE_SCRIPT
