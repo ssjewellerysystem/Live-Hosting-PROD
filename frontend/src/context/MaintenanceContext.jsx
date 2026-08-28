@@ -35,10 +35,22 @@ export const MaintenanceProvider = ({ children }) => {
   useEffect(() => {
     checkMaintenanceStatus();
     const interval = setInterval(() => {
-      checkMaintenanceStatus();
+      if (document.visibilityState === 'visible') {
+        checkMaintenanceStatus();
+      }
     }, 30000); // 30 seconds auto-refresh requirement
 
-    return () => clearInterval(interval);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkMaintenanceStatus();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [checkMaintenanceStatus]);
 
   // Global Axios Interceptor to catch HTTP 503 maintenance responses

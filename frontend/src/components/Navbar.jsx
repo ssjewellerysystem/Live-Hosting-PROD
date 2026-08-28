@@ -128,7 +128,7 @@ export const Navbar = () => {
   }, [isDark]);
 
   // Notifications API Integration
-  const fetchNotifications = async () => {
+  const fetchNotifications = useCallback(async () => {
     if (!user) return;
     try {
       const endpoint = isAdmin ? `${API_BASE_URL}/admin/notifications` : `${API_BASE_URL}/auth/notifications`;
@@ -137,17 +137,26 @@ export const Navbar = () => {
     } catch (err) {
       console.error("Failed to fetch notifications:", err);
     }
-  };
+  }, [user, isAdmin]);
 
   useEffect(() => {
     if (user) {
       fetchNotifications();
-      const interval = setInterval(fetchNotifications, 10000); // Poll every 10 seconds
-      return () => clearInterval(interval);
+      const pollWhenVisible = () => {
+        if (document.visibilityState === 'visible') {
+          fetchNotifications();
+        }
+      };
+      const interval = setInterval(pollWhenVisible, 10000); // Poll every 10 seconds while active
+      document.addEventListener('visibilitychange', pollWhenVisible);
+      return () => {
+        clearInterval(interval);
+        document.removeEventListener('visibilitychange', pollWhenVisible);
+      };
     } else {
       setNotifications([]);
     }
-  }, [user, isAdmin]);
+  }, [user, fetchNotifications]);
 
   const handleMarkAsRead = async (id, e) => {
     if (e) e.stopPropagation();

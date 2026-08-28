@@ -29,10 +29,22 @@ export const HighDemandProvider = ({ children }) => {
   useEffect(() => {
     checkHighDemandStatus();
     const interval = setInterval(() => {
-      checkHighDemandStatus();
+      if (document.visibilityState === 'visible') {
+        checkHighDemandStatus();
+      }
     }, 30000);
 
-    return () => clearInterval(interval);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        checkHighDemandStatus();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(interval);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, [checkHighDemandStatus]);
 
   // Admin function to toggle High Demand mode
