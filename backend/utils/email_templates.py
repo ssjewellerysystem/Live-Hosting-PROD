@@ -161,7 +161,7 @@ def get_forgot_password_otp_html(name, otp_code):
     <div class="otp-box">
         <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Your Password Reset OTP</div>
         <div class="otp-code">{otp_code}</div>
-        <div style="font-size:12px;color:#dc2626;font-weight:bold;margin-top:6px;">⏱ Valid for 5 minutes</div>
+        <div style="font-size:12px;color:#dc2626;font-weight:bold;margin-top:6px;">Valid for 5 minutes</div>
     </div>
 
     <p style="background-color:#fffbeb;border-left:4px solid #D4A75F;padding:12px;font-size:12px;color:#92400e;border-radius:4px;">
@@ -313,7 +313,9 @@ def get_registration_otp_html(name, otp_code):
     <div class="otp-box">
         <div style="font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:1px;font-weight:bold;">Your Registration Verification OTP</div>
         <div class="otp-code">{otp_code}</div>
-        <div style="font-size:12px;color:#dc2626;font-weight:bold;margin-top:6px;">⏱ Valid for 5 minutes</div>
+        <div style="font-size:12px;color:#dc2626;font-weight:bold;margin-top:6px;">
+        
+        Valid for 5 minutes</div>
     </div>
 
     <p style="font-size:12px;color:#64748b;">If you did not initiate this account creation, please ignore this email.</p>
