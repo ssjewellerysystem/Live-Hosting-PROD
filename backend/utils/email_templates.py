@@ -320,4 +320,7 @@ def get_registration_otp_html(name, otp_code):
 
     <p style="font-size:12px;color:#64748b;"><p>If this was not requested by you, you can ignore this message.</p>.</p>
     """
-    return _get_base_template(content, preview_text=f"preview_text="Thank you for choosing SSJewellery": {otp_code}")
+    return _get_base_template(
+    content,
+    preview_text=f"Thank you for choosing SSJewellery: {otp_code}"
+)
