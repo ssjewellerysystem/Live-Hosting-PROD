@@ -47,11 +47,16 @@ run in a one-off container and are not part of application startup.
 
    ```bash
    sudo install -d -o ubuntu -g ubuntu /opt/ssjewellery/deploy
-   sudo install -d -o ubuntu -g ubuntu /opt/ssjewellery/uploads
+   sudo install -d -o 10001 -g 10001 -m 0755 /opt/ssjewellery/uploads
    sudo chown ubuntu:ubuntu /opt/ssjewellery
    test -f /opt/ssjewellery/.env
    docker compose version
    ```
+
+   The backend image deliberately runs as UID/GID `10001`. Keep the uploads
+   directory owned by `10001:10001`; otherwise local image uploads fail with a
+   permission error. The deployment workflow reasserts this ownership without
+   deleting any files.
 
 2. If the GHCR package is private, create a classic GitHub personal access
    token with only `read:packages` (and repository read access if GitHub

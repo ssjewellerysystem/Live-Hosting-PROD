@@ -3,6 +3,7 @@ from flask import Blueprint, request, jsonify
 from werkzeug.utils import secure_filename
 import cloudinary
 import cloudinary.uploader
+from backend.config import Config
 from backend.models.product import ProductModel
 from backend.models.review import ReviewModel
 from backend.middleware.auth import token_required, admin_required
@@ -13,9 +14,9 @@ from backend.utils.uploads import validate_image_upload
 products_bp = Blueprint('products', __name__)
 
 # Configure Cloudinary if credentials are set
-CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
-CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
-CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+CLOUDINARY_CLOUD_NAME = Config.CLOUDINARY_CLOUD_NAME
+CLOUDINARY_API_KEY = Config.CLOUDINARY_API_KEY
+CLOUDINARY_API_SECRET = Config.CLOUDINARY_API_SECRET
 
 if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
     cloudinary.config(
