@@ -196,7 +196,8 @@ def upload_banner_image():
             upload_result = cloudinary.uploader.upload(file)
             return jsonify({
                 "message": "Banner image uploaded to Cloudinary successfully!",
-                "url": upload_result.get("secure_url")
+                "url": upload_result.get("secure_url"),
+                "image_url": upload_result.get("secure_url")
             }), 200
         except Exception as e:
             print(f"[CLOUDINARY] Upload failed, falling back to local: {e}")
@@ -209,7 +210,8 @@ def upload_banner_image():
         url = f"/static/uploads/{filename}"
         return jsonify({
             "message": "Banner image uploaded locally successfully!",
-            "url": url
+            "url": url,
+            "image_url": url
         }), 200
     except Exception as ex:
         return jsonify({"message": f"Failed to upload banner image: {str(ex)}"}), 500

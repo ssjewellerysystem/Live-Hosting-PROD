@@ -494,15 +494,17 @@ export const AdminControl = () => {
       const token = localStorage.getItem('bb_token') || localStorage.getItem('token');
       const response = await axios.post(`${API_BASE_URL}/banners/upload`, formData, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
+          'Authorization': `Bearer ${token}`
         }
       });
-      setBannerForm(prev => ({ ...prev, image_url: response.data.image_url }));
+      let uploadedUrl = response.data?.image_url || response.data?.url;
+      if (!uploadedUrl) throw new Error('Upload completed without an image URL.');
+      if (uploadedUrl.startsWith('/static/')) uploadedUrl = `${SERVER_BASE_URL}${uploadedUrl}`;
+      setBannerForm(prev => ({ ...prev, image_url: uploadedUrl }));
       setBannerSuccess("Image uploaded successfully!");
     } catch (err) {
       console.error("Error uploading banner image:", err);
-      setBannerError(err.response?.data?.message || "Failed to upload banner image.");
+      setBannerError(err.response?.data?.message || err.message || "Failed to upload banner image.");
     } finally {
       setUploadingBannerImage(false);
     }

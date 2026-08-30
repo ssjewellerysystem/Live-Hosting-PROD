@@ -7,7 +7,7 @@ import { ProductCard, ProductCardSkeleton } from '../components/ProductCard';
 const ProductDetails = lazy(() => import('./ProductDetails').then(m => ({ default: m.ProductDetails })));
 const HomeAdminAnalytics = lazy(() => import('../components/HomeAdminAnalytics').then(m => ({ default: m.HomeAdminAnalytics })));
 const HomeUserManagement = lazy(() => import('../components/HomeUserManagement').then(m => ({ default: m.HomeUserManagement })));
-import { AuthContext, API_BASE_URL } from '../context/AuthContext';
+import { AuthContext, API_BASE_URL, SERVER_BASE_URL } from '../context/AuthContext';
 import { LuxuryImage } from '../components/LuxuryImage';
 import { formatPrice } from '../utils/priceFormatter';
 import { translateCategory, translateUiLabel } from '../utils/categoryTranslations';
@@ -1452,6 +1452,7 @@ export const Home = () => {
         if (response.data && Array.isArray(response.data)) {
           const mapped = response.data.map(b => {
             let img = b.image_url;
+            if (img && img.startsWith('/static/')) img = `${SERVER_BASE_URL}${img}`;
             if (!img) {
               if (b.title && (b.title.includes("Solitaire") || b.category === "Rings")) img = "/luxury_solitaire_ring.png";
               else if (b.title && (b.title.includes("Empress") || b.category === "Necklaces")) img = "/luxury_emerald_necklace.png";
@@ -1520,15 +1521,17 @@ export const Home = () => {
       const token = localStorage.getItem('bb_token') || localStorage.getItem('token');
       const response = await axios.post(`${API_BASE_URL}/banners/upload`, formData, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data'
+          'Authorization': `Bearer ${token}`
         }
       });
-      setBannerForm(prev => ({ ...prev, image_url: response.data.image_url }));
+      let uploadedUrl = response.data?.image_url || response.data?.url;
+      if (!uploadedUrl) throw new Error('Upload completed without an image URL.');
+      if (uploadedUrl.startsWith('/static/')) uploadedUrl = `${SERVER_BASE_URL}${uploadedUrl}`;
+      setBannerForm(prev => ({ ...prev, image_url: uploadedUrl }));
       setBannerSuccess("Image uploaded successfully!");
     } catch (err) {
       console.error("Error uploading banner image:", err);
-      setBannerError(err.response?.data?.message || "Failed to upload banner image.");
+      setBannerError(err.response?.data?.message || err.message || "Failed to upload banner image.");
     } finally {
       setUploadingBannerImage(false);
     }
