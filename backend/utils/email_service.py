@@ -10,7 +10,9 @@ from backend.utils.email_templates import (
     get_forgot_password_otp_html,
     get_order_confirmation_html,
     get_buy_request_approval_html,
-    get_registration_otp_html
+    get_registration_otp_html,
+    get_order_status_update_html,
+    get_support_reply_html,
 )
 
 class EmailDeliveryStatus(dict):
@@ -246,3 +248,23 @@ def send_registration_otp(to_email, otp_code, name=None):
     subject = "SSJewellery Registration Code"
     html_body = get_registration_otp_html(name, otp_code)
     return send_email(to_email, subject, html_body, email_type="REGISTRATION_OTP", is_html=True, sync=True)
+
+
+def send_order_status_update(to_email, name, order_id, status, message=None, tracking_id=None, tracking_url=None, delivery_date=None):
+    subject = f"Order {order_id} Update: {status}"
+    html_body = get_order_status_update_html(
+        name=name,
+        order_id=order_id,
+        status=status,
+        message=message,
+        tracking_id=tracking_id,
+        tracking_url=tracking_url,
+        delivery_date=delivery_date,
+    )
+    return send_email(to_email, subject, html_body, email_type="ORDER_STATUS_UPDATE", is_html=True, sync=True)
+
+
+def send_support_ticket_reply(to_email, name, ticket_id, original_message, reply_message):
+    subject = f"Reply to Your SSJewellery Support Ticket #{ticket_id}"
+    html_body = get_support_reply_html(name, ticket_id, original_message, reply_message)
+    return send_email(to_email, subject, html_body, email_type="SUPPORT_TICKET_REPLY", is_html=True, sync=True)

@@ -1,12 +1,15 @@
 import React, { useContext, useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
-import { ShoppingBag, Search, ShoppingCart, Heart, ClipboardList, Sun, Moon, LogIn, LogOut, Shield, Menu, X, User, Globe, Settings, Bell, Check, Trash2, Clock, AlertTriangle, DollarSign, MessageSquare, Home, Sparkles, Info, Mail, ChevronRight, ExternalLink } from 'lucide-react';
+import { ShoppingBag, Search, ShoppingCart, Heart, ClipboardList, Sun, Moon, LogIn, LogOut, Shield, Menu, X, User, Globe, Settings, Bell, Check, Trash2, Clock, AlertTriangle, DollarSign, MessageSquare, Home, Sparkles, Info, Mail, Phone, MapPin, ChevronRight, ExternalLink } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { AuthContext, API_BASE_URL } from '../context/AuthContext';
 import { CartContext } from '../context/CartContext';
 import { useTranslation } from '../hooks/useTranslation';
 import { translateCategory } from '../utils/categoryTranslations';
 import axios from 'axios';
+import { DEFAULT_SUPPORT_LINKS, getSupportLinkProps } from '../utils/supportLinks';
+
+const SupportIconMap = { Phone, Mail, MapPin, Globe, MessageSquare };
 
 // Shared SSJewellery Brand Identity component for Desktop Navbar, Mobile Navbar & Mobile Drawer
 const NavbarBrandLogo = ({ onClick, isDrawer = false }) => (
@@ -104,6 +107,23 @@ export const Navbar = () => {
   const [mobileProfileOpen, setMobileProfileOpen] = useState(false);
   const [mobileAboutOpen, setMobileAboutOpen] = useState(false);
   const [mobileContactOpen, setMobileContactOpen] = useState(false);
+  const [supportLinks, setSupportLinks] = useState(DEFAULT_SUPPORT_LINKS);
+
+  const fetchSupportLinks = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/support/links`);
+      const activeLinks = Array.isArray(response.data) ? response.data.filter(link => link.is_active) : [];
+      setSupportLinks(activeLinks.length > 0 ? activeLinks : DEFAULT_SUPPORT_LINKS);
+    } catch (error) {
+      console.error('Failed to fetch navbar support links:', error);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchSupportLinks();
+    window.addEventListener('support-links-updated', fetchSupportLinks);
+    return () => window.removeEventListener('support-links-updated', fetchSupportLinks);
+  }, [fetchSupportLinks]);
 
   // Sync searchVal from URL params if present
   useEffect(() => {
@@ -1493,7 +1513,10 @@ export const Navbar = () => {
                   {/* Contact Us dropdown */}
                   <div className="py-1">
                     <button
-                      onClick={() => setMobileContactOpen(!mobileContactOpen)}
+                      onClick={() => {
+                        if (!mobileContactOpen) fetchSupportLinks();
+                        setMobileContactOpen(!mobileContactOpen);
+                      }}
                       className="flex items-center justify-between w-full py-2 text-sm font-semibold transition-colors bg-transparent border-none cursor-pointer text-slate-350 hover:text-white"
                     >
                       <div className="flex items-center gap-3">
@@ -1511,9 +1534,19 @@ export const Navbar = () => {
                           transition={{ duration: 0.2 }}
                           className="overflow-hidden pl-7.5 mt-1 space-y-2 text-xs text-slate-400 text-left"
                         >
-                          <p>Email: care@ssjewellery.com</p>
-                          <p>Phone: +91 98765 43210</p>
-                          <p>Address: SS House, Sector 5, Mumbai</p>
+                          {supportLinks.map((link) => {
+                            const IconComponent = SupportIconMap[link.icon] || Globe;
+                            return (
+                              <a
+                                key={link.id || link._id}
+                                {...getSupportLinkProps(link)}
+                                className="flex items-center gap-2 text-slate-400 hover:text-[#D4A75F] transition-colors"
+                              >
+                                <IconComponent className="h-3.5 w-3.5 flex-shrink-0 text-[#D4A75F]" />
+                                <span>{link.title}</span>
+                              </a>
+                            );
+                          })}
                         </motion.div>
                       )}
                     </AnimatePresence>

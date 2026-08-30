@@ -617,7 +617,8 @@ export const AdminControl = () => {
       }
       setIsSupportLinkModalOpen(false);
       setEditingSupportLinkId(null);
-      fetchSupportLinks();
+      await fetchSupportLinks();
+      window.dispatchEvent(new CustomEvent('support-links-updated'));
     } catch (err) {
       console.error("Error saving support link:", err);
       alert(err.response?.data?.message || "Failed to save support link.");
@@ -643,7 +644,8 @@ export const AdminControl = () => {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       alert("Support link deleted successfully!");
-      fetchSupportLinks();
+      await fetchSupportLinks();
+      window.dispatchEvent(new CustomEvent('support-links-updated'));
     } catch (err) {
       console.error("Error deleting support link:", err);
       alert(err.response?.data?.message || "Failed to delete support link.");
@@ -2620,7 +2622,10 @@ export const AdminControl = () => {
         payload.tracking_url = trackingPayload.tracking_url;
         payload.tracking_id = trackingPayload.tracking_id;
       }
-      await axios.put(`${API_BASE_URL}/orders/${orderId}/status`, payload);
+      const response = await axios.put(`${API_BASE_URL}/orders/${orderId}/status`, payload);
+      if (response.data?.email_sent === false) {
+        alert(`Order updated, but customer email was not delivered (${response.data.email_status || 'email failed'}). Check SMTP settings and email logs.`);
+      }
       fetchOrders();
       if (selectedOrder && String(selectedOrder._id || selectedOrder.id) === String(orderId)) {
         setSelectedOrder(prev => prev ? {

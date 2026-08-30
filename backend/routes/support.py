@@ -93,6 +93,7 @@ def reply_to_ticket(current_user, ticket_id):
     from backend.models.support import SupportModel, SupportReplyModel
     from backend.models.user import UserModel
     from backend.routes.auth import add_user_notification
+    from backend.utils.email_service import send_support_ticket_reply
     from backend.extensions import db
     
     try:
@@ -124,6 +125,7 @@ def reply_to_ticket(current_user, ticket_id):
         
         is_admin_reply = caller_is_admin
         
+        email_delivery = {"success": False, "status": "not_applicable"}
         if is_admin_reply:
             ticket.status = "Replied"
         else:
@@ -154,11 +156,26 @@ def reply_to_ticket(current_user, ticket_id):
                     ticket_id=ticket.id,
                     original_message=ticket.message
                 )
+
+            recipient_email = getattr(recipient_user, "email", None) if recipient_user else ticket.email
+            recipient_name = getattr(recipient_user, "full_name", None) if recipient_user else ticket.name
+            if recipient_email:
+                email_delivery = send_support_ticket_reply(
+                    recipient_email,
+                    recipient_name,
+                    ticket.id,
+                    ticket.message,
+                    message,
+                )
+            else:
+                email_delivery = {"success": False, "status": "no_recipient"}
         
         return jsonify({
             "message": "Reply submitted successfully!",
             "reply": reply.to_dict(),
-            "success": True
+            "success": True,
+            "email_sent": email_delivery.get("status") == "delivered" if is_admin_reply else False,
+            "email_status": email_delivery.get("status")
         }), 201
     except Exception as e:
         db.session.rollback()
@@ -319,7 +336,9 @@ def ensure_support_links_seeded():
 @support_bp.route('/links', methods=['GET'])
 def get_support_links():
     links = SupportLinkModel.find_all()
-    return jsonify([link.to_dict() for link in links]), 200
+    response = jsonify([link.to_dict() for link in links])
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response, 200
 
 @support_bp.route('/links', methods=['POST'])
 @admin_required
