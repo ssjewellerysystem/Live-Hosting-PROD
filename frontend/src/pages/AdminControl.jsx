@@ -1096,27 +1096,31 @@ export const AdminControl = () => {
     }
   };
 
+  const persistHomepageSettings = async (settings) => {
+      const token = localStorage.getItem('bb_token') || localStorage.getItem('token');
+      const payload = {
+        ...settings,
+        owner_stats: JSON.stringify(settings.owner_stats),
+        owner_badges: JSON.stringify(settings.owner_badges),
+        occasion_items_en: JSON.stringify(settings.occasion_items_en),
+        occasion_items_hi: JSON.stringify(settings.occasion_items_hi),
+        owners_list: JSON.stringify(settings.owners_list)
+      };
+      return axios.post(`${API_BASE_URL}/admin/settings`, payload, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+  };
+
   const handleSaveHomepageSettings = async (e) => {
     e.preventDefault();
     setHomepageUpdating(true);
     setHomepageError('');
     setHomepageSuccess('');
     try {
-      const token = localStorage.getItem('bb_token') || localStorage.getItem('token');
-      const payload = {
-        ...homepageSettings,
-        owner_stats: JSON.stringify(homepageSettings.owner_stats),
-        owner_badges: JSON.stringify(homepageSettings.owner_badges),
-        occasion_items_en: JSON.stringify(homepageSettings.occasion_items_en),
-        occasion_items_hi: JSON.stringify(homepageSettings.occasion_items_hi),
-        owners_list: JSON.stringify(homepageSettings.owners_list)
-      };
-      const response = await axios.post(`${API_BASE_URL}/admin/settings`, payload, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
+      const response = await persistHomepageSettings(homepageSettings);
       if (response.data.success) {
         setHomepageSuccess("Homepage settings updated successfully!");
         fetchHomepageSettings();
@@ -1225,6 +1229,9 @@ export const AdminControl = () => {
   const handleUploadOwnerPhoto = async (file, ownerIdx) => {
     const formData = new FormData();
     formData.append('image', file);
+    setHomepageUpdating(true);
+    setHomepageError('');
+    setHomepageSuccess('');
     try {
       const token = localStorage.getItem('bb_token') || localStorage.getItem('token');
       const response = await axios.post(`${API_BASE_URL}/products/upload`, formData, {
@@ -1240,16 +1247,27 @@ export const AdminControl = () => {
         }
         const updated = [...(homepageSettings.owners_list || [])];
         if (updated[ownerIdx]) {
-          updated[ownerIdx].image = uploadedUrl;
-          setHomepageSettings(prev => ({
-            ...prev,
+          updated[ownerIdx] = { ...updated[ownerIdx], image: uploadedUrl };
+          const nextSettings = {
+            ...homepageSettings,
             owners_list: updated
-          }));
+          };
+          setHomepageSettings(nextSettings);
+
+          const saveResponse = await persistHomepageSettings(nextSettings);
+          if (!saveResponse.data?.success) {
+            throw new Error(saveResponse.data?.message || "Photo uploaded but its setting could not be saved.");
+          }
+          setHomepageSuccess("Founder photo uploaded and saved successfully!");
         }
       }
     } catch (err) {
       console.error("Error uploading owner photo:", err);
-      alert(err.response?.data?.message || "Failed to upload photo.");
+      const message = err.response?.data?.message || err.message || "Failed to upload photo.";
+      setHomepageError(message);
+      alert(message);
+    } finally {
+      setHomepageUpdating(false);
     }
   };
 
@@ -3409,7 +3427,7 @@ export const AdminControl = () => {
               className="w-full sm:w-auto flex items-center justify-center gap-1.5 px-5 py-2.5 sm:py-3 bg-emerald-500 hover:bg-emerald-600 disabled:bg-emerald-500/50 text-white text-xs font-bold rounded-xl shadow-sm transition-all cursor-pointer"
             >
               {homepageUpdating ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-              <span>Save Video Showcase</span>
+              <span>Save Homepage Settings</span>
             </button>
           </div>
         </form>
