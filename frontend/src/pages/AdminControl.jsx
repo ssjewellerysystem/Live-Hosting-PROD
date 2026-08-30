@@ -1249,7 +1249,7 @@ export const AdminControl = () => {
       }
     } catch (err) {
       console.error("Error uploading owner photo:", err);
-      alert("Failed to upload photo.");
+      alert(err.response?.data?.message || "Failed to upload photo.");
     }
   };
 

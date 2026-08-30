@@ -169,7 +169,10 @@ jobs:
           echo "=========================================="
 
           mkdir -p "$DEPLOY_DIR"
-          mkdir -p "$ROOT/uploads"
+          # The image runs as UID/GID 10001, so the bind mount must be writable
+          # by the container identity rather than only by the SSH user.
+          sudo -n install -d -o 10001 -g 10001 -m 0755 "$ROOT/uploads"
+          sudo -n chown -R 10001:10001 "$ROOT/uploads"
 
           if [[ ! -f "$ROOT/.env" ]]; then
             echo "ERROR: Production .env file is missing"
