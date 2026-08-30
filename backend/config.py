@@ -221,7 +221,8 @@ class Config:
     SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD") or os.environ.get("MAIL_PASSWORD") or os.environ.get("EMAIL_APP_PASSWORD")
     SMTP_FROM = f"SSJewellery <{SMTP_EMAIL}>" if SMTP_EMAIL else None
 
-    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))
+    # Homepage showcase videos commonly exceed the old 16 MiB image-oriented cap.
+    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_CONTENT_LENGTH", 100 * 1024 * 1024))
     REPORT_SCHEDULER_ENABLED = _get_bool_env("REPORT_SCHEDULER_ENABLED", False)
 
     # Flask-Mail Compatibility Configuration

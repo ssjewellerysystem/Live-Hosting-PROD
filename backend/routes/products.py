@@ -9,7 +9,7 @@ from backend.models.review import ReviewModel
 from backend.middleware.auth import token_required, admin_required
 from backend.extensions import db
 from backend.utils.timezone import format_iso_datetime
-from backend.utils.uploads import validate_image_upload
+from backend.utils.uploads import validate_image_upload, validate_video_upload
 
 products_bp = Blueprint('products', __name__)
 
@@ -433,6 +433,43 @@ def upload_image():
         }), 200
     except Exception as ex:
         return jsonify({"message": f"Failed to upload image locally: {str(ex)}"}), 500
+
+
+@products_bp.route('/upload-video', methods=['POST'])
+@admin_required
+def upload_video():
+    file = request.files.get('video') or request.files.get('file')
+    filename, validation_error = validate_video_upload(file)
+    if validation_error:
+        return jsonify({"message": validation_error}), 400
+
+    if CLOUDINARY_ENABLED:
+        try:
+            upload_result = cloudinary.uploader.upload(
+                file,
+                resource_type="video",
+                folder="ssjewellery/video-showcase",
+            )
+            url = upload_result.get("secure_url")
+            if not url:
+                raise ValueError("Cloudinary did not return a video URL.")
+            return jsonify({"message": "Video uploaded successfully!", "url": url}), 200
+        except Exception as exc:
+            print(f"Cloudinary video upload failed: {exc}. Falling back to local.")
+            file.stream.seek(0)
+
+    try:
+        filepath = os.path.join(UPLOAD_FOLDER, filename)
+        file.save(filepath)
+        if os.path.getsize(filepath) == 0:
+            os.remove(filepath)
+            raise ValueError("Uploaded video was empty after local persistence.")
+        return jsonify({
+            "message": "Video uploaded successfully!",
+            "url": f"/static/uploads/{filename}",
+        }), 200
+    except Exception as exc:
+        return jsonify({"message": f"Failed to upload video: {str(exc)}"}), 500
 
 
 # User: Request to Buy Out-of-Stock Product

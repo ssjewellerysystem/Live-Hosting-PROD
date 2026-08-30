@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
 import { ArrowRight, Sparkles } from 'lucide-react';
-import { API_BASE_URL } from '../context/AuthContext';
+import { API_BASE_URL, SERVER_BASE_URL } from '../context/AuthContext';
 
 // Centralized production-ready API endpoint builder for Collection Banners
 export const getCollectionBannerEndpoint = (subpath = '') => {
@@ -11,6 +11,8 @@ export const getCollectionBannerEndpoint = (subpath = '') => {
   const cleanSub = subpath ? (subpath.startsWith('/') ? subpath : `/${subpath}`) : '';
   return `${cleanBase}/api/collection-banners${cleanSub}`;
 };
+
+const resolveMediaUrl = (url) => url?.startsWith('/static/') ? `${SERVER_BASE_URL}${url}` : url;
 
 export const CollectionBanner = ({ collectionName }) => {
   const [banner, setBanner] = useState(null);
@@ -86,7 +88,7 @@ export const CollectionBanner = ({ collectionName }) => {
         {/* Single Responsive Banner Image Container */}
         <div className="relative w-full h-[280px] xs:h-[320px] sm:h-[380px] md:h-[440px] lg:h-[480px] overflow-hidden">
           <img
-            src={banner.banner_image}
+            src={resolveMediaUrl(banner.banner_image)}
             alt={banner.title || collectionName}
             loading="lazy"
             onLoad={() => setImageLoaded(true)}

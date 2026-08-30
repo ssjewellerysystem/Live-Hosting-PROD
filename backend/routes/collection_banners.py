@@ -30,7 +30,8 @@ def upload_collection_banner_image():
     file = request.files['image']
     res, err = CollectionBannerService.upload_banner_image(file)
     if err:
-        return jsonify({"message": err}), 400 if "No file" in err else 500
+        status = 500 if err.startswith("Failed to upload") else 400
+        return jsonify({"message": err}), status
     return jsonify(res), 200
 
 
