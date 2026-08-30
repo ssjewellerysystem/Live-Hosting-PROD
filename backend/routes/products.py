@@ -414,11 +414,17 @@ def upload_image():
             }), 200
         except Exception as e:
             print(f"Cloudinary upload failed: {e}. Falling back to local.")
+            # Cloudinary may consume the multipart stream before raising. Reset
+            # it so the local fallback writes the complete original image.
+            file.stream.seek(0)
             
     # Local fallback
     try:
         filepath = os.path.join(UPLOAD_FOLDER, filename)
         file.save(filepath)
+        if os.path.getsize(filepath) == 0:
+            os.remove(filepath)
+            raise ValueError("Uploaded image was empty after local persistence.")
         
         url = f"/static/uploads/{filename}"
         return jsonify({
