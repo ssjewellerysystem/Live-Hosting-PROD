@@ -19,7 +19,13 @@ def configure_cors(app, *, frontend_url=None, allowed_origins=None, environment=
         app,
         origins=origins,
         supports_credentials=True,
-        allow_headers=["Content-Type", "Authorization"],
+        allow_headers=[
+            "Content-Type",
+            "Authorization",
+            "X-Access-Token",
+            "X-Auth-Token",
+            "X-Admin-Token",
+        ],
         methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     )
     return origins

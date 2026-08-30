@@ -155,9 +155,7 @@ export const CollectionBannerManagement = ({ collections = [] }) => {
       const endpoint = getCollectionBannerEndpoint('/upload');
       const res = await axios.post(endpoint, formData, {
         headers: {
-          'Content-Type': 'multipart/form-data',
-          'Authorization': token ? `Bearer ${token}` : '',
-          'X-Admin-Token': token || ''
+          'Authorization': token ? `Bearer ${token}` : ''
         }
       });
       if (res.data && res.data.url) {
@@ -167,7 +165,8 @@ export const CollectionBannerManagement = ({ collections = [] }) => {
       }
     } catch (err) {
       console.error("Error uploading collection banner image:", err);
-      showMsg('error', err.response?.data?.message || 'Failed to upload image.');
+      const detail = err.response?.data?.message || (err.code === 'ERR_NETWORK' ? 'Upload request was blocked or the backend is unreachable.' : err.message);
+      showMsg('error', detail || 'Failed to upload image.');
     } finally {
       setUploading(false);
     }
