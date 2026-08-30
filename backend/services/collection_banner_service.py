@@ -7,11 +7,12 @@ from backend.models.collection import CollectionModel
 from backend.models.collection_banner import CollectionBanner
 from backend.utils.audit import log_admin_action
 from backend.utils.uploads import validate_image_upload
+from backend.config import Config
 
 # Cloudinary Setup
-CLOUDINARY_CLOUD_NAME = os.getenv("CLOUDINARY_CLOUD_NAME")
-CLOUDINARY_API_KEY = os.getenv("CLOUDINARY_API_KEY")
-CLOUDINARY_API_SECRET = os.getenv("CLOUDINARY_API_SECRET")
+CLOUDINARY_CLOUD_NAME = Config.CLOUDINARY_CLOUD_NAME
+CLOUDINARY_API_KEY = Config.CLOUDINARY_API_KEY
+CLOUDINARY_API_SECRET = Config.CLOUDINARY_API_SECRET
 
 if all([CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET]):
     try:
@@ -133,11 +134,15 @@ class CollectionBannerService:
                 }, None
             except Exception as e:
                 print(f"[CLOUDINARY] Upload failed, falling back to local storage: {e}")
+                file.stream.seek(0)
 
         # Local storage fallback
         try:
             filepath = os.path.join(UPLOAD_FOLDER, filename)
             file.save(filepath)
+            if os.path.getsize(filepath) == 0:
+                os.remove(filepath)
+                raise ValueError("Uploaded image was empty after local persistence.")
 
             url = f"/static/uploads/{filename}"
             log_admin_action("Image Uploaded", "Site Configurations", f"Uploaded collection banner image locally: {url}")

@@ -29,18 +29,19 @@ export const SupportCenter = () => {
     try {
       const config = { headers: { Authorization: `Bearer ${token}` } };
       const response = await axiosInstance.get(`${API_BASE_URL}/support/my-tickets`, config);
-      setTickets(response.data);
-      if (response.data.length > 0) {
+      const ticketList = Array.isArray(response.data) ? response.data : (response.data?.items || []);
+      setTickets(ticketList);
+      if (ticketList.length > 0) {
         const urlParams = new URLSearchParams(window.location.search);
         const targetId = urlParams.get('ticket_id');
         if (targetId) {
-          const found = response.data.find(t => String(t.id || t._id) === String(targetId));
-          setSelectedTicket(found || response.data[0]);
+          const found = ticketList.find(t => String(t.id || t._id) === String(targetId));
+          setSelectedTicket(found || ticketList[0]);
         } else if (selectedTicket) {
-          const updatedSelected = response.data.find(t => String(t.id || t._id) === String(selectedTicket.id || selectedTicket._id));
-          setSelectedTicket(updatedSelected || response.data[0]);
+          const updatedSelected = ticketList.find(t => String(t.id || t._id) === String(selectedTicket.id || selectedTicket._id));
+          setSelectedTicket(updatedSelected || ticketList[0]);
         } else {
-          setSelectedTicket(response.data[0]);
+          setSelectedTicket(ticketList[0]);
         }
       } else {
         setSelectedTicket(null);

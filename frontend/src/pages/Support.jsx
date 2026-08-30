@@ -6,7 +6,7 @@ import { API_BASE_URL, AuthContext } from '../context/AuthContext';
 import { useTranslation } from '../hooks/useTranslation';
 
 export const Support = () => {
-  const { user } = useContext(AuthContext);
+  const { user, token } = useContext(AuthContext);
   const { t } = useTranslation();
   const [faqs, setFaqs] = useState([]);
   const [loadingFaqs, setLoadingFaqs] = useState(true);
@@ -19,6 +19,12 @@ export const Support = () => {
   const [submitting, setSubmitting] = useState(false);
   const [successMsg, setSuccessMsg] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (!user) return;
+    setName(user.name || user.full_name || '');
+    setEmail(user.email || '');
+  }, [user]);
 
   // Fetch FAQ content
   useEffect(() => {
@@ -57,7 +63,6 @@ export const Support = () => {
     setSuccessMsg('');
 
     try {
-      const token = localStorage.getItem('token');
       const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
       const response = await axios.post(`${API_BASE_URL}/support`, {
         name,
@@ -65,8 +70,8 @@ export const Support = () => {
         message
       }, config);
       setSuccessMsg(response.data.message);
-      setName('');
-      setEmail('');
+      setName(user?.name || user?.full_name || '');
+      setEmail(user?.email || '');
       setMessage('');
     } catch (err) {
       console.error(err);

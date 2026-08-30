@@ -1180,10 +1180,12 @@ export const AdminControl = () => {
 
   const handleUploadMediaFile = async (file, targetField, galleryIndex = null) => {
     const formData = new FormData();
-    formData.append('image', file);
+    const isVideo = targetField === 'video_showcase_url';
+    formData.append(isVideo ? 'video' : 'image', file);
     try {
       const token = localStorage.getItem('bb_token') || localStorage.getItem('token');
-      const response = await axios.post(`${API_BASE_URL}/products/upload`, formData, {
+      const uploadPath = isVideo ? 'upload-video' : 'upload';
+      const response = await axios.post(`${API_BASE_URL}/products/${uploadPath}`, formData, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'multipart/form-data'
@@ -1222,7 +1224,7 @@ export const AdminControl = () => {
       }
     } catch (err) {
       console.error("Error uploading media file:", err);
-      alert("Failed to upload media file.");
+      alert(err.response?.data?.message || "Failed to upload media file.");
     }
   };
 

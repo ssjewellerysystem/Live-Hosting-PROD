@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Upload, Trash2, Edit3, Plus, RefreshCw, Check, Sparkles, Image as ImageIcon, Link as LinkIcon, AlertTriangle } from 'lucide-react';
-import { API_BASE_URL } from '../../context/AuthContext';
+import { API_BASE_URL, SERVER_BASE_URL } from '../../context/AuthContext';
 import { getCategoryBannerEndpoint } from '../CategoryBanner';
 
 export const CategoryBannerManagement = ({ categories = [] }) => {
@@ -32,7 +32,7 @@ export const CategoryBannerManagement = ({ categories = [] }) => {
   const [displayOrder, setDisplayOrder] = useState(0);
 
 
-  const token = localStorage.getItem('token') || localStorage.getItem('adminToken');
+  const token = localStorage.getItem('bb_token') || localStorage.getItem('token') || localStorage.getItem('adminToken');
   const authHeaders = {
     headers: {
       'Authorization': token ? `Bearer ${token}` : '',
@@ -145,7 +145,8 @@ export const CategoryBannerManagement = ({ categories = [] }) => {
         }
       });
       if (res.data && res.data.url) {
-        setBannerImage(res.data.url);
+        const uploadedUrl = res.data.url.startsWith('/static/') ? `${SERVER_BASE_URL}${res.data.url}` : res.data.url;
+        setBannerImage(uploadedUrl);
         showMsg('success', 'Banner image uploaded successfully!');
       }
     } catch (err) {

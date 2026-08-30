@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { ScrollTrigger } from 'gsap/ScrollTrigger';
+import { SERVER_BASE_URL } from '../context/AuthContext';
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -9,6 +10,7 @@ export const VideoShowcase = React.memo(({ url }) => {
   const videoWrapperRef = useRef(null);
   const videoRef = useRef(null);
   const [isVisible, setIsVisible] = useState(false);
+  const videoUrl = url?.startsWith('/static/') ? `${SERVER_BASE_URL}${url}` : (url || "/golden-stage.mp4");
 
   useEffect(() => {
     const observer = new IntersectionObserver(
@@ -74,7 +76,7 @@ export const VideoShowcase = React.memo(({ url }) => {
         <video
           ref={videoRef}
           className="absolute inset-0 w-full h-full object-cover"
-          src={url || "/golden-stage.mp4"}
+          src={videoUrl}
           preload="metadata"
           autoPlay={false}
           loop
