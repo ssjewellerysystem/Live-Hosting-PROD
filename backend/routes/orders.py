@@ -4,7 +4,7 @@ from backend.models.order import OrderModel
 from backend.models.product import ProductModel
 from backend.models.user import UserModel, DeliveryAddress
 from backend.middleware.auth import token_required, admin_required
-from backend.utils.email_service import send_order_confirmation
+from backend.utils.email_service import send_order_confirmation, send_order_status_update
 
 orders_bp = Blueprint('orders', __name__)
 
@@ -407,6 +407,26 @@ def update_order_status(id):
             add_user_notification(str(order_obj.user_id), "Order Tracking Update", f"Your order {order_obj.order_id} is now: {status}. {message or ''}")
     except Exception as ex:
         print(f"Error sending tracking notification: {ex}")
+
+    email_delivery = {"success": False, "status": "no_recipient"}
+    if order_obj:
+        recipient = UserModel.query.get(order_obj.user_id) if order_obj.user_id else None
+        shipping = order_obj.shipping_address or {}
+        recipient_email = getattr(recipient, "email", None) or shipping.get("email")
+        recipient_name = getattr(recipient, "full_name", None) or shipping.get("name") or "Valued Customer"
+        if recipient_email:
+            email_delivery = send_order_status_update(
+                recipient_email,
+                recipient_name,
+                order_obj.order_id,
+                status,
+                message=message,
+                tracking_id=order_obj.tracking_id,
+                tracking_url=order_obj.tracking_url,
+                delivery_date=order_obj.delivery_date,
+            )
+        else:
+            print(f"[ORDER EMAIL] No customer email found for order {order_obj.order_id}")
         
     # Audit Log
     from backend.utils.audit import log_admin_action
@@ -420,7 +440,9 @@ def update_order_status(id):
         
     return jsonify({
         "message": "Order status updated successfully!",
-        "status": status
+        "status": status,
+        "email_sent": email_delivery.get("status") == "delivered",
+        "email_status": email_delivery.get("status", "failed")
     }), 200
 
 @orders_bp.route('/<id>/tracking', methods=['PUT'])

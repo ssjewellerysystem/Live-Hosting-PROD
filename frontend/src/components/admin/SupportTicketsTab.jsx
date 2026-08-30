@@ -62,12 +62,15 @@ export const SupportTicketsTab = ({
                     try {
                       const token = localStorage.getItem('token');
                       const config = token ? { headers: { Authorization: `Bearer ${token}` } } : {};
-                      await axios.post(`${API_BASE_URL}/support/${m.id || m._id}/reply`, {
+                      const response = await axios.post(`${API_BASE_URL}/support/${m.id || m._id}/reply`, {
                         sender: "Admin Support",
                         message: replyMsg
                       }, config);
                       if (inputEl) inputEl.value = '';
                       fetchMessages();
+                      if (response.data?.email_sent === false) {
+                        alert(`Reply saved, but customer email was not delivered (${response.data.email_status || 'email failed'}). Check SMTP settings and email logs.`);
+                      }
                     } catch (err) {
                       alert("Failed to send reply: " + (err.response?.data?.message || err.message));
                     }

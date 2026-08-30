@@ -5,6 +5,7 @@ import axios from 'axios';
 import { AuthContext, API_BASE_URL } from '../context/AuthContext';
 import { CartContext } from '../context/CartContext';
 import { useTranslation } from '../hooks/useTranslation';
+import { DEFAULT_SUPPORT_LINKS, getSupportLinkProps } from '../utils/supportLinks';
 
 const IconMap = {
   Phone: Phone,
@@ -30,14 +31,15 @@ export const Footer = () => {
     const fetchLinks = async () => {
       try {
         const res = await axios.get(`${API_BASE_URL}/support/links`);
-        if (res.data && res.data.length > 0) {
-          setSupportLinks(res.data.filter(link => link.is_active));
-        }
+        const activeLinks = Array.isArray(res.data) ? res.data.filter(link => link.is_active) : [];
+        setSupportLinks(activeLinks.length > 0 ? activeLinks : DEFAULT_SUPPORT_LINKS);
       } catch (err) {
         console.error("Failed to fetch footer support links:", err);
       }
     };
     fetchLinks();
+    window.addEventListener('support-links-updated', fetchLinks);
+    return () => window.removeEventListener('support-links-updated', fetchLinks);
   }, []);
 
   return (
@@ -116,14 +118,10 @@ export const Footer = () => {
               {supportLinks.map(link => {
                 const IconComponent = IconMap[link.icon] || Phone;
                 let displayTitle = localize(link, 'title');
-                let displayUrl = link.url;
-                if (displayTitle === "support@SSJewellery.com") {
-                  displayTitle = "support@SSJewellery.com";
-                  displayUrl = "mailto:support@SSJewellery.com";
-                }
+                const anchorProps = getSupportLinkProps(link);
                 return (
                   <li key={link.id || link._id}>
-                    <a href={displayUrl} target="_blank" rel="noopener noreferrer" className="flex items-center space-x-2 text-[#F5F5F5] hover:text-[#D4A75F] transition-colors">
+                    <a {...anchorProps} className="flex items-center space-x-2 text-[#F5F5F5] hover:text-[#D4A75F] transition-colors">
                       <IconComponent className="h-4.5 w-4.5 text-[#D4A75F] flex-shrink-0" />
                       <span>{displayTitle}</span>
                     </a>
